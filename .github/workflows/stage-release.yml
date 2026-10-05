@@ -1,0 +1,36 @@
+name: Stage release assets
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_run:
+        description: Successful Desktop installers workflow run ID
+        required: true
+      release_tag:
+        description: Existing draft release tag
+        required: true
+permissions:
+  contents: write
+  actions: read
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.artifact_run }}
+          pattern: desktop-*
+          path: artifacts
+      - name: Stage installers and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          files=(artifacts/**/*.zip artifacts/**/*.exe)
+          test "${#files[@]}" -ge 2
+          sha256sum "${files[@]}" > SHA256SUMS.txt
+          gh release upload "$RELEASE_TAG" "${files[@]}" SHA256SUMS.txt --clobber
