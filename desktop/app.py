@@ -17,8 +17,9 @@ from engines import LocalEngines, data_dir, normalize, parse_glossary
 from platform_hotkey import Hotkey
 from theme import STYLE
 from releases import check_release
+from updater import download, mac_bundle, stage_replacement, launch_swap
 
-VERSION = '0.2.2'
+VERSION = '0.2.3'
 
 
 class Signals(QObject):
@@ -109,7 +110,7 @@ class Reader(QWidget):
 class Main(QMainWindow):
     def __init__(self):
         super().__init__(); self.setWindowTitle('OxyTranslateGame'); self.resize(1020, 780); self.setMinimumSize(880, 690)
-        self.preferences = QSettings(); self.update_job = None; self.update_info = None; self.update_later_until = 0; self.permission_requested = False
+        self.preferences = QSettings(); self.update_job = None; self.update_info = None; self.update_later_until = 0; self.permission_requested = False; self.install_job = None
         self.engine = LocalEngines(); self.pool = QThreadPool(); self.pool.setMaxThreadCount(1)
         self.token = 0; self.active = None; self.cancel = threading.Event(); self.region = None; self.selectors = []
         self.history = deque(maxlen=30); self.last = ''; self.current_original = ''; self.capture_pending = False; self.reader_placed = False
@@ -124,7 +125,7 @@ class Main(QMainWindow):
             item = button(title, lambda checked=False, n=index: self.open_page(n)); item.setObjectName('Nav'); item.setCheckable(True); nav.addWidget(item); self.nav_buttons.append(item)
         nav.addStretch()
         self.update_notice = label('', 'Muted'); self.update_notice.hide(); nav.addWidget(self.update_notice)
-        self.update_open = button('Скачать обновление', self.open_update); self.update_open.hide(); nav.addWidget(self.update_open)
+        self.update_open = button('Обновить', self.open_update); self.update_open.hide(); nav.addWidget(self.update_open)
         self.update_skip = button('Пропустить версию', self.skip_update); self.update_skip.hide(); nav.addWidget(self.update_skip)
         self.update_later = button('Позже', self.defer_update); self.update_later.hide(); nav.addWidget(self.update_later)
         nav.addWidget(button('Проверить версию', lambda: self.check_updates(True)))
@@ -165,7 +166,35 @@ class Main(QMainWindow):
         self.update_notice.show(); self.update_open.show(); self.update_skip.show(); self.update_later.show()
 
     def open_update(self):
-        if self.update_info: QDesktopServices.openUrl(QUrl(self.update_info['url']))
+        if not self.update_info or self.install_job: return
+        try:
+            if not getattr(sys, 'frozen', False): raise RuntimeError('Автообновление доступно в готовой сборке приложения.')
+            target = mac_bundle(sys.executable) if sys.platform == 'darwin' else Path(sys.executable).parent
+        except Exception as error:
+            QMessageBox.information(self, 'Обновление', str(error)); return
+        if QMessageBox.question(self, 'Обновить приложение?', 'Скачать и установить версию ' + self.update_info['latest'] + '? Приложение перезапустится. Модели и настройки сохранятся.') != QMessageBox.Yes: return
+        self.stop(); self.update_open.setEnabled(False)
+        cache = data_dir() / 'updates'
+        def prepare(progress):
+            unpacked = download(self.update_info, 'Datastore24Kirill/OxyTranslateGame', 'translator', cache, progress)
+            return stage_replacement(unpacked, target, 'translator')
+        self.install_job = Job(0, prepare)
+        self.install_job.signals.progress.connect(lambda token, message: self.set_status(message))
+        def prepared(token, candidate, error):
+            if error:
+                self.install_job = None; self.update_open.setEnabled(True)
+                QMessageBox.warning(self, 'Обновление не установлено', error + '\nТекущая версия сохранена.'); return
+            def install_when_idle():
+                if self.active:
+                    self.set_status('Обновление готово. Ожидаю завершения текущей операции…')
+                    QTimer.singleShot(500, install_when_idle); return
+                try: launch_swap(candidate, target, cache, 'OxyTranslateGame.exe')
+                except Exception as failure:
+                    self.install_job = None; self.update_open.setEnabled(True); QMessageBox.warning(self, 'Обновление', str(failure)); return
+                self.quit()
+            install_when_idle()
+        self.install_job.signals.done.connect(prepared)
+        QThreadPool.globalInstance().start(self.install_job)
 
     def skip_update(self):
         if self.update_info: self.preferences.setValue('updates/skipped', self.update_info['latest'])
