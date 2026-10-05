@@ -20,7 +20,7 @@ import screen_access
 from releases import check_release
 from updater import download, mac_bundle, stage_replacement, launch_swap
 
-VERSION = '0.2.6'
+VERSION = '0.2.7'
 
 
 class Signals(QObject):
@@ -242,13 +242,14 @@ class Main(QMainWindow):
         self.period.valueChanged.connect(lambda n: (self.timer.setInterval(n * 1000), self.preferences.setValue('translation/period', n))); row.addWidget(self.period); panel.addLayout(row); groups.addWidget(box)
         box, panel = card(); panel.addWidget(label('Доступ к экрану', 'Brand'))
         self.permission_status = label('', 'Muted'); panel.addWidget(self.permission_status)
-        self.permission_help = label('Разрешите запись экрана в настройках macOS. Если доступ уже включён, перезапустите приложение. После обновления может потребоваться выключить и снова включить переключатель.', 'Muted'); panel.addWidget(self.permission_help)
+        self.permission_help = label('Нажмите «Разрешить запись экрана» и подтвердите запрос macOS. После выдачи доступа может потребоваться перезапуск.', 'Muted'); panel.addWidget(self.permission_help)
         row = QHBoxLayout(); self.permission_button = button('Настроить доступ', self.permission_action, True); row.addWidget(self.permission_button)
-        self.permission_check = button('Проверить доступ', self.check_permission_now); row.addWidget(self.permission_check); panel.addLayout(row)
+        panel.addLayout(row)
         self.permission_feedback = label('', 'Muted'); self.permission_feedback.hide(); panel.addWidget(self.permission_feedback)
         self.permission_details_toggle = button('Доступ включён, но не работает ▸', self.toggle_permission_details); panel.addWidget(self.permission_details_toggle)
         self.permission_details = QWidget(); details = QVBoxLayout(self.permission_details); details.setContentsMargins(0, 0, 0, 0)
         details.addWidget(label('1. Выключите и включите доступ для этой копии приложения.\n2. Перезапустите приложение.\n3. Если это не помогло, сбросьте старое разрешение кнопкой ниже.', 'Muted'))
+        self.permission_check = button('Проверить доступ', self.check_permission_now); details.addWidget(self.permission_check)
         details.addWidget(button('Открыть настройки macOS ↗', self.open_screen_settings))
         self.permission_repair = button('Сбросить старое разрешение…', self.repair_permission); details.addWidget(self.permission_repair)
         panel.addWidget(self.permission_details); self.permission_details.hide()
@@ -273,8 +274,8 @@ class Main(QMainWindow):
             self.permission_status.setText('Не удалось проверить разрешение macOS. Повторите проверку или откройте системные настройки.'); return False
         self.permission_status.setText(('Разрешение macOS подтверждено. Можно выбрать область.' if sys.platform == 'darwin' else 'Отдельное разрешение macOS на Windows не требуется.') if granted else 'Доступ этой копии приложения пока не подтверждён.')
         self.permission_help.setVisible(not granted and sys.platform == 'darwin')
-        self.permission_button.setVisible(not granted and sys.platform == 'darwin')
-        self.permission_button.setText('Перезапустить приложение' if self.permission_requested else 'Настроить доступ')
+        self.permission_button.setVisible(True)
+        self.permission_button.setText('Выбрать область' if granted else ('Перезапустить приложение' if self.permission_requested else 'Разрешить запись экрана'))
         self.permission_details_toggle.setVisible(not granted and sys.platform == 'darwin')
         if granted:
             self.permission_details.hide(); self.preferences.setValue('screen/lastGrantedVersion', VERSION)
@@ -293,7 +294,8 @@ class Main(QMainWindow):
         self.permission_details_toggle.setText('Скрыть дополнительные шаги ▾' if visible else 'Доступ включён, но не работает ▸')
 
     def permission_action(self):
-        if self.permission_requested: self.restart_app()
+        if self.refresh_permission(): self.select_region()
+        elif self.permission_requested: self.restart_app()
         else: self.request_permission()
 
     def open_screen_settings(self):
@@ -303,11 +305,10 @@ class Main(QMainWindow):
         if self.permission_requested: self.open_screen_settings(); return
         self.permission_requested = True
         try:
-            if not self.preferences.value('screen/legacyIdentityMigrated', False, type=bool):
-                screen_access.remove_legacy_permission()
-                self.preferences.setValue('screen/legacyIdentityMigrated', True)
             granted = screen_access.request()
-        except Exception as error: self.permission_status.setText('Не удалось запросить доступ: ' + str(error)); return
+        except Exception as error:
+            self.permission_requested = False
+            self.permission_feedback.setText('Не удалось запросить доступ: ' + str(error)); self.permission_feedback.show(); return
         self.refresh_permission()
         self.permission_feedback.setText('Разрешение получено. Можно выбрать область.' if granted else 'Запрос отправлен macOS для этой копии приложения. Подтвердите разрешение в системном окне. Если macOS требует перезапуск, нажмите «Перезапустить приложение».')
         self.permission_feedback.show()

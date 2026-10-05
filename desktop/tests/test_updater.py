@@ -43,6 +43,13 @@ class UpdateTests(unittest.TestCase):
             quoted=str(helper).replace("'","''")
             subprocess.run(['powershell.exe','-NoProfile','-Command',"$e=$null;$t=$null;[System.Management.Automation.Language.Parser]::ParseFile('"+quoted+"',[ref]$t,[ref]$e)|Out-Null;if($e.Count){throw $e}"],check=True)
 
+    def test_mac_shortcut_resolves_to_installed_bundle(self):
+        with tempfile.TemporaryDirectory() as root:
+            base = Path(root); installed = base/'Applications'/'App.app'
+            binary = installed/'Contents'/'MacOS'/'App'; binary.parent.mkdir(parents=True); binary.touch()
+            shortcut = base/'Shortcut.app'; shortcut.symlink_to(installed, target_is_directory=True)
+            self.assertEqual(updater.mac_bundle(shortcut/'Contents'/'MacOS'/'App'), installed)
+
     def test_mac_swap_and_backup(self):
         if sys.platform != 'darwin': self.skipTest('macOS helper')
         import subprocess

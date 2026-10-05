@@ -29,7 +29,7 @@ def register_current_bundle():
     bundle = next((p for p in Path(sys.executable).parents if p.suffix == '.app'), None)
     if bundle is None: return
     # Refresh the installed path: the former Swift app used a different bundle ID.
-    for flag in ('-u', '-f'):
+    for flag in ('-f',):
         subprocess.run([LSREGISTER, flag, str(bundle)], check=True, capture_output=True, timeout=10)
 
 def remove_legacy_permission():

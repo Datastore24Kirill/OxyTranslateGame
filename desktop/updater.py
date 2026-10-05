@@ -93,7 +93,7 @@ def download(info, repo, product, cache, progress):
 
 
 def mac_bundle(executable):
-    for parent in Path(executable).absolute().parents:
+    for parent in Path(executable).resolve().parents:
         if parent.suffix == '.app': return parent
     raise RuntimeError('Автообновление доступно в установленной .app сборке.')
 
