@@ -65,7 +65,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         editMenu.addItem(withTitle: "Выбрать всё", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         edit.submenu = editMenu; menu.addItem(edit); NSApp.mainMenu = menu
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "character.bubble", accessibilityDescription: "OxyTranslateGame")
+        let brandIcon = NSApplication.shared.applicationIconImage.copy() as! NSImage
+        brandIcon.size = NSSize(width: 18, height: 18)
+        statusItem.button?.image = brandIcon
         let tray = NSMenu()
         for (title, action) in [("Выбрать область", #selector(selectArea)), ("Остановить / скрыть перевод", #selector(stop)), ("Настройки", #selector(showSettings)), ("Завершить", #selector(quit))] {
             tray.addItem(withTitle: title, action: action, keyEquivalent: "").target = self

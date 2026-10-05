@@ -16,7 +16,7 @@ from engines import LocalEngines, data_dir, normalize, parse_glossary
 from platform_hotkey import Hotkey
 from theme import STYLE
 
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 
 
 class Signals(QObject):
@@ -113,6 +113,8 @@ class Main(QMainWindow):
         self.reader = Reader(self); self.reader.closed.connect(self.stop)
         root = QWidget(); self.setCentralWidget(root); base = QHBoxLayout(root); base.setContentsMargins(0, 0, 0, 0); base.setSpacing(0)
         sidebar = QFrame(); sidebar.setObjectName('Sidebar'); sidebar.setFixedWidth(214); nav = QVBoxLayout(sidebar); nav.setContentsMargins(22, 30, 18, 25)
+        icon_path = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'AppIcon.png'
+        brand_icon = QLabel(); brand_icon.setPixmap(QIcon(str(icon_path)).pixmap(76, 76)); brand_icon.setAccessibleName('Логотип OxyTranslateGame'); nav.addWidget(brand_icon)
         nav.addWidget(label('Oxy\nTranslateGame', 'Brand')); nav.addWidget(label('YOUR GAME. YOUR LANGUAGE.', 'Eyebrow')); nav.addSpacing(30)
         self.pages = QStackedWidget(); self.nav_buttons = []
         for index, title in enumerate(['Перевод', 'Модели', 'Имена и термины', 'История']):
@@ -125,7 +127,8 @@ class Main(QMainWindow):
         if not self.hotkey.ok: self.set_status('Горячая клавиша занята. Используйте кнопку выбора области.')
         self.tray = QSystemTrayIcon(self)
         icon_path = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'AppIcon.png'
-        if icon_path.exists(): self.setWindowIcon(QIcon(str(icon_path))); self.tray.setIcon(QIcon(str(icon_path)))
+        if icon_path.exists():
+            app_icon = QIcon(str(icon_path)); QApplication.instance().setWindowIcon(app_icon); self.setWindowIcon(app_icon); self.reader.setWindowIcon(app_icon); self.tray.setIcon(app_icon)
         menu = QMenu(); menu.addAction('Выбрать область', self.select_region); menu.addAction('Остановить', self.stop); menu.addAction('Открыть настройки', self.show_settings); menu.addAction('Выход', self.quit)
         self.tray.setContextMenu(menu); self.tray.show()
 

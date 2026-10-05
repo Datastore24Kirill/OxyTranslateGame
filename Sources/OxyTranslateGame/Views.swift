@@ -6,7 +6,7 @@ struct MainView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 14) {
-                Image(systemName: "character.bubble.fill").font(.system(size: 36)).foregroundStyle(.teal)
+                Image(nsImage: NSApplication.shared.applicationIconImage).resizable().frame(width: 52, height: 52)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("OxyTranslateGame").font(.system(size: 25, weight: .bold))
                     Text("Перевод любой области экрана").foregroundStyle(.secondary)

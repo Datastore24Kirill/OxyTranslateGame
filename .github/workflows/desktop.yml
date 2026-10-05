@@ -1,7 +1,7 @@
 name: Desktop installers
 on:
   push:
-    paths: ['desktop/**', '.github/workflows/desktop.yml']
+    paths: ['desktop/**', 'Resources/AppIcon.icns', '.github/workflows/desktop.yml']
   workflow_dispatch:
 permissions:
   contents: read

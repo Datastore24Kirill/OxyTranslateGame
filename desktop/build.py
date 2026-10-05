@@ -30,13 +30,13 @@ if IS_MAC:
     bundle = output/'OxyTranslateGame.app'
     info = bundle/'Contents/Info.plist'
     data = plistlib.loads(info.read_bytes())
-    data.update(CFBundleShortVersionString='0.2.0', CFBundleVersion='2', LSMinimumSystemVersion='14.0',
+    data.update(CFBundleShortVersionString='0.2.1', CFBundleVersion='3', LSMinimumSystemVersion='14.0',
                 NSScreenCaptureUsageDescription='Read only the screen area you select for local translation.')
     info.write_bytes(plistlib.dumps(data))
     subprocess.run(['codesign','--force','--deep','--sign',os.environ.get('CODESIGN_IDENTITY','-'),str(bundle)],check=True)
     subprocess.run(['codesign','--verify','--deep','--strict',str(bundle)],check=True)
-    archive = output/f'OxyTranslateGame-0.2.0-macOS-{platform.machine()}.zip'
+    archive = output/f'OxyTranslateGame-0.2.1-macOS-{platform.machine()}.zip'
     subprocess.run(['ditto','-c','-k','--sequesterRsrc','--keepParent',str(bundle),str(archive)],check=True)
 else:
-    shutil.make_archive(str(output/'OxyTranslateGame-0.2.0-Windows-x64-Portable'),'zip',str(output),'OxyTranslateGame')
+    shutil.make_archive(str(output/'OxyTranslateGame-0.2.1-Windows-x64-Portable'),'zip',str(output),'OxyTranslateGame')
 print('BUILD_OK', flush=True)

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="desktop/AppIcon.png" width="180" alt="OxyTranslateGame logo">
+</p>
+
 # OxyTranslateGame
 
 **Translate a game region. Keep reading the story.**
