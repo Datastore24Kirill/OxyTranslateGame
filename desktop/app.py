@@ -145,6 +145,9 @@ class Main(QMainWindow):
         self.update_timer = QTimer(self); self.update_timer.timeout.connect(self.check_updates); self.update_timer.start(6 * 60 * 60 * 1000)
         QApplication.instance().styleHints().colorSchemeChanged.connect(lambda _: self.apply_theme())
         self.apply_theme()
+        if self.preferences.value('screen/requestAfterRestart', False, type=bool):
+            self.preferences.remove('screen/requestAfterRestart')
+            QTimer.singleShot(500, self.request_permission)
         self.permission_timer = QTimer(self); self.permission_timer.timeout.connect(self.refresh_permission); self.permission_timer.start(2000)
         QTimer.singleShot(12000, self.check_updates)
 
@@ -248,7 +251,7 @@ class Main(QMainWindow):
         self.permission_feedback = label('', 'Muted'); self.permission_feedback.hide(); panel.addWidget(self.permission_feedback)
         self.permission_details_toggle = button('Доступ включён, но не работает ▸', self.toggle_permission_details); panel.addWidget(self.permission_details_toggle)
         self.permission_details = QWidget(); details = QVBoxLayout(self.permission_details); details.setContentsMargins(0, 0, 0, 0)
-        details.addWidget(label('1. Выключите и включите доступ для этой копии приложения.\n2. Перезапустите приложение.\n3. Если это не помогло, сбросьте старое разрешение кнопкой ниже.', 'Muted'))
+        details.addWidget(label('Если после обновления флажок включён, а доступ не подтверждается, сохранённое разрешение может относиться к прежней подписи. Кнопка ниже удалит эту привязку, перезапустит приложение и вызовет новый запрос macOS.', 'Muted'))
         self.permission_check = button('Проверить доступ', self.check_permission_now); details.addWidget(self.permission_check)
         details.addWidget(button('Открыть настройки macOS ↗', self.open_screen_settings))
         self.permission_repair = button('Сбросить старое разрешение…', self.repair_permission); details.addWidget(self.permission_repair)
@@ -284,7 +287,7 @@ class Main(QMainWindow):
     def check_permission_now(self):
         granted = self.refresh_permission()
         stamp = time.strftime('%H:%M:%S')
-        message = ('Разрешение подтверждено. Нажмите «Перевод → Выбрать область».' if sys.platform == 'darwin' else 'Проверка разрешения macOS не нужна. Проверить захват можно через «Перевод → Выбрать область».') if granted else 'Разрешение не подтверждено. Если переключатель включён, перезапустите приложение; дополнительные шаги — ниже.'
+        message = ('Разрешение подтверждено. Нажмите «Перевод → Выбрать область».' if sys.platform == 'darwin' else 'Проверка разрешения macOS не нужна. Проверить захват можно через «Перевод → Выбрать область».') if granted else 'Разрешение не подтверждено. После выдачи доступа перезапустите приложение. Если после обновления это не помогло, используйте восстановление ниже.'
         self.permission_feedback.setText('Проверено в ' + stamp + '. ' + message); self.permission_feedback.show()
         if not granted:
             self.permission_details.show(); self.permission_details_toggle.setText('Скрыть дополнительные шаги ▾')
@@ -319,7 +322,8 @@ class Main(QMainWindow):
         try: screen_access.reset_current_app()
         except Exception as error:
             QMessageBox.warning(self, 'Восстановление доступа', 'Не удалось сбросить разрешение. Удалите OxyTranslateGame из списка записи экрана и добавьте снова.\n' + str(error)); return
-        self.permission_requested = False; self.request_permission()
+        self.preferences.setValue('screen/requestAfterRestart', True); self.preferences.sync()
+        self.restart_app()
 
     def restart_app(self):
         if self.active:
