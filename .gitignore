@@ -7,3 +7,8 @@ xcuserdata/
 .env*
 *.p12
 *.mobileprovision
+
+.venv*/
+build/
+__pycache__/
+*.pyc
