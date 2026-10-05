@@ -1,4 +1,4 @@
-#define AppVersion "0.2.3"
+#define AppVersion "0.2.4"
 [Setup]
 AppId={{CB12CE82-09C5-42F8-A628-BE2E0685D47F}
 AppName=OxyTranslateGame
@@ -11,7 +11,7 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=..\dist\desktop
-OutputBaseFilename=OxyTranslateGame-0.2.3-Windows-x64-Setup
+OutputBaseFilename=OxyTranslateGame-0.2.4-Windows-x64-Setup
 SetupIconFile=AppIcon.ico
 UninstallDisplayIcon={app}\OxyTranslateGame.exe
 Compression=lzma2

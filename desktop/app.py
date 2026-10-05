@@ -1,4 +1,4 @@
-import ctypes
+import subprocess
 import json
 import os
 import sys
@@ -9,17 +9,18 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from PySide6.QtCore import Qt, QRect, Signal, QObject, QRunnable, QThreadPool, QTimer, QUrl, QSettings
-from PySide6.QtGui import QColor, QPainter, QPen, QFont, QKeySequence, QShortcut, QDesktopServices, QIcon, QImage
+from PySide6.QtGui import QColor, QPainter, QPen, QFont, QKeySequence, QShortcut, QDesktopServices, QIcon, QImage, QPalette
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QStackedWidget, QComboBox, QTextEdit, QPlainTextEdit, QCheckBox,
-    QSlider, QSpinBox, QMessageBox, QProgressBar, QSystemTrayIcon, QMenu)
+    QSlider, QSpinBox, QMessageBox, QProgressBar, QSystemTrayIcon, QMenu, QScrollArea)
 from engines import LocalEngines, data_dir, normalize, parse_glossary
 from platform_hotkey import Hotkey
-from theme import STYLE
+from theme import stylesheet
+import screen_access
 from releases import check_release
 from updater import download, mac_bundle, stage_replacement, launch_swap
 
-VERSION = '0.2.3'
+VERSION = '0.2.4'
 
 
 class Signals(QObject):
@@ -121,18 +122,16 @@ class Main(QMainWindow):
         brand_icon = QLabel(); brand_icon.setPixmap(QIcon(str(icon_path)).pixmap(76, 76)); brand_icon.setAccessibleName('Логотип OxyTranslateGame'); nav.addWidget(brand_icon)
         nav.addWidget(label('Oxy\nTranslateGame', 'Brand')); nav.addWidget(label('YOUR GAME. YOUR LANGUAGE.', 'Eyebrow')); nav.addSpacing(30)
         self.pages = QStackedWidget(); self.nav_buttons = []
-        for index, title in enumerate(['Перевод', 'Модели', 'Имена и термины', 'История']):
+        for index, title in enumerate(['Перевод', 'Модели', 'Имена и термины', 'История', 'Настройки']):
             item = button(title, lambda checked=False, n=index: self.open_page(n)); item.setObjectName('Nav'); item.setCheckable(True); nav.addWidget(item); self.nav_buttons.append(item)
         nav.addStretch()
         self.update_notice = label('', 'Muted'); self.update_notice.hide(); nav.addWidget(self.update_notice)
         self.update_open = button('Обновить', self.open_update); self.update_open.hide(); nav.addWidget(self.update_open)
         self.update_skip = button('Пропустить версию', self.skip_update); self.update_skip.hide(); nav.addWidget(self.update_skip)
         self.update_later = button('Позже', self.defer_update); self.update_later.hide(); nav.addWidget(self.update_later)
-        nav.addWidget(button('Проверить версию', lambda: self.check_updates(True)))
-        self.auto_updates = QCheckBox('Автопроверка GitHub'); self.auto_updates.setChecked(self.preferences.value('updates/auto', True, type=bool)); self.auto_updates.toggled.connect(lambda value: self.preferences.setValue('updates/auto', value)); nav.addWidget(self.auto_updates)
         nav.addWidget(label('●  LOCAL FIRST', 'Eyebrow')); nav.addWidget(label('Mac + Windows\nv' + VERSION, 'Muted'))
         base.addWidget(sidebar); base.addWidget(self.pages, 1)
-        self.build_translate(); self.build_models(); self.build_glossary(); self.build_history(); self.open_page(0)
+        self.build_translate(); self.build_models(); self.build_glossary(); self.build_history(); self.build_settings(); self.open_page(0)
         self.timer = QTimer(self); self.timer.timeout.connect(lambda: self.capture(False))
         self.hotkey = Hotkey(QApplication.instance()); self.hotkey.activated.connect(self.select_region)
         if not self.hotkey.ok: self.set_status('Горячая клавиша занята. Используйте кнопку выбора области.')
@@ -144,6 +143,9 @@ class Main(QMainWindow):
         menu.addAction('Проверить обновления', lambda: self.check_updates(True))
         self.tray.setContextMenu(menu); self.tray.show()
         self.update_timer = QTimer(self); self.update_timer.timeout.connect(self.check_updates); self.update_timer.start(6 * 60 * 60 * 1000)
+        QApplication.instance().styleHints().colorSchemeChanged.connect(lambda _: self.apply_theme())
+        self.apply_theme()
+        self.permission_timer = QTimer(self); self.permission_timer.timeout.connect(self.refresh_permission); self.permission_timer.start(2000)
         QTimer.singleShot(12000, self.check_updates)
 
     def check_updates(self, manual=False):
@@ -212,16 +214,93 @@ class Main(QMainWindow):
     def build_translate(self):
         layout = self.page('ПЕРЕВОД БЕЗ ГРАНИЦ', 'Понимай историю.\nОставайся в игре.', 'Выдели диалог — русский перевод появится рядом. Без скриншотов и текста в облаке.')
         box, panel = card(); row = QHBoxLayout(); row.addWidget(label('English  →  Русский')); row.addStretch(); row.addWidget(label('⌥⌘T' if sys.platform == 'darwin' else 'Ctrl + Alt + T', 'Eyebrow')); panel.addLayout(row)
-        self.mode = QComboBox(); self.mode.addItems(['Быстрый · локальная модель Argos', 'Литературный · локальная модель Ollama']); self.mode.currentIndexChanged.connect(self.mode_changed); panel.addWidget(self.mode)
         actions = QHBoxLayout(); self.select_btn = button('＋  Выбрать область', self.select_region, True); actions.addWidget(self.select_btn)
         self.again = button('Перевести снова', lambda: self.capture(True)); actions.addWidget(self.again); actions.addWidget(button('Стоп', self.stop)); panel.addLayout(actions)
         row = QHBoxLayout(); self.watch = QCheckBox('Автоматически следить за репликами'); self.watch.toggled.connect(self.watch_changed); row.addWidget(self.watch); row.addStretch()
-        self.period = QSpinBox(); self.period.setRange(1, 10); self.period.setValue(2); self.period.setSuffix(' с'); self.period.valueChanged.connect(lambda n: self.timer.setInterval(n * 1000)); row.addWidget(self.period); panel.addLayout(row)
+        panel.addLayout(row)
         self.region_label = label('Область пока не выбрана', 'Muted'); panel.addWidget(self.region_label); layout.addWidget(box)
         box, panel = card(); self.status = label('Готов. Выбери область экрана.'); panel.addWidget(self.status)
         self.progress = QProgressBar(); self.progress.setRange(0, 0); self.progress.setTextVisible(False); self.progress.hide(); panel.addWidget(self.progress)
         self.preview = QTextEdit(); self.preview.setReadOnly(True); self.preview.setPlaceholderText('Здесь появится перевод. Отдельное окно можно перемещать и менять его размер.'); self.preview.setMinimumHeight(110); panel.addWidget(self.preview); layout.addWidget(box, 1)
         row = QHBoxLayout(); row.addWidget(button('Google ↗', lambda: self.open_online('google'))); row.addWidget(button('Яндекс ↗', lambda: self.open_online('yandex'))); row.addStretch(); row.addWidget(label('Онлайн — только по нажатию', 'Muted')); layout.addLayout(row)
+
+    def build_settings(self):
+        layout = self.page('ПОД ВАШУ ИГРУ', 'Настройки', 'Оформление, перевод, доступ к экрану и обновления.')
+        scroll = QScrollArea(); scroll.setWidgetResizable(True); content = QWidget(); groups = QVBoxLayout(content); groups.setContentsMargins(0, 0, 8, 0); groups.setSpacing(16); scroll.setWidget(content); layout.addWidget(scroll)
+        box, panel = card(); panel.addWidget(label('Оформление', 'Brand'))
+        self.theme = QComboBox()
+        for title, value in [('Системная (авто)', 'system'), ('Светлая', 'light'), ('Тёмная', 'dark')]: self.theme.addItem(title, value)
+        self.theme.setCurrentIndex(max(0, self.theme.findData(self.preferences.value('appearance/theme', 'system'))))
+        self.theme.currentIndexChanged.connect(self.apply_theme); panel.addWidget(self.theme)
+        panel.addWidget(label('Тема применяется ко всем окнам и сохраняется сразу.', 'Muted')); groups.addWidget(box)
+        box, panel = card(); panel.addWidget(label('Перевод', 'Brand'))
+        self.mode = QComboBox(); self.mode.addItems(['Быстрый · локальная модель Argos', 'Литературный · локальная модель Ollama'])
+        self.mode.setCurrentIndex(max(0, min(1, self.preferences.value('translation/mode', 0, type=int))))
+        self.mode.currentIndexChanged.connect(self.mode_changed); self.mode.currentIndexChanged.connect(lambda n: self.preferences.setValue('translation/mode', n)); panel.addWidget(self.mode)
+        row = QHBoxLayout(); row.addWidget(label('Интервал автоматического перевода'))
+        self.period = QSpinBox(); self.period.setRange(1, 10); self.period.setValue(self.preferences.value('translation/period', 2, type=int)); self.period.setSuffix(' с')
+        self.period.valueChanged.connect(lambda n: (self.timer.setInterval(n * 1000), self.preferences.setValue('translation/period', n))); row.addWidget(self.period); panel.addLayout(row); groups.addWidget(box)
+        box, panel = card(); panel.addWidget(label('Доступ к экрану', 'Brand'))
+        self.permission_status = label('', 'Muted'); panel.addWidget(self.permission_status)
+        self.permission_help = label('Если переключатель уже включён, после обновления он может относиться к старой копии. Откройте настройки macOS, выключите и включите доступ для OxyTranslateGame, затем перезапустите приложение. Если это не помогло, нажмите «Восстановить доступ».', 'Muted'); panel.addWidget(self.permission_help)
+        row = QHBoxLayout(); self.permission_button = button('Разрешить доступ', self.request_permission); row.addWidget(self.permission_button)
+        self.permission_repair = button('Восстановить доступ', self.repair_permission); row.addWidget(self.permission_repair); panel.addLayout(row)
+        row = QHBoxLayout(); self.system_settings_button = button('Настройки macOS ↗', self.open_screen_settings); row.addWidget(self.system_settings_button); row.addWidget(button('Проверить доступ', self.refresh_permission)); panel.addLayout(row)
+        self.restart_button = button('Перезапустить приложение', self.restart_app); panel.addWidget(self.restart_button)
+        if sys.platform != 'darwin':
+            for item in (self.permission_help, self.permission_button, self.permission_repair, self.system_settings_button, self.restart_button): item.hide()
+        self.refresh_permission(); groups.addWidget(box)
+        box, panel = card(); panel.addWidget(label('Обновления', 'Brand'))
+        self.auto_updates = QCheckBox('Автоматически проверять новые версии'); self.auto_updates.setChecked(self.preferences.value('updates/auto', True, type=bool)); self.auto_updates.toggled.connect(lambda value: self.preferences.setValue('updates/auto', value)); panel.addWidget(self.auto_updates)
+        panel.addWidget(button('Проверить обновления', lambda: self.check_updates(True))); panel.addWidget(label('Версия ' + VERSION, 'Muted')); groups.addWidget(box); groups.addStretch()
+
+    def apply_theme(self, *_):
+        value = self.theme.currentData(); self.preferences.setValue('appearance/theme', value)
+        app = QApplication.instance(); dark = value == 'dark' or (value == 'system' and app.styleHints().colorScheme() == Qt.ColorScheme.Dark)
+        app.setStyleSheet(stylesheet(dark))
+        palette = QPalette()
+        for role, color in [(QPalette.Window, '#10151f' if dark else '#f3f6fb'), (QPalette.WindowText, '#e8edf7' if dark else '#172438'), (QPalette.Base, '#121b29' if dark else '#ffffff'), (QPalette.Text, '#e8edf7' if dark else '#172438'), (QPalette.ButtonText, '#e8edf7' if dark else '#172438'), (QPalette.Highlight, '#31594f' if dark else '#cceee3'), (QPalette.HighlightedText, '#ffffff' if dark else '#172438')]: palette.setColor(role, QColor(color))
+        app.setPalette(palette)
+
+    def refresh_permission(self):
+        try: granted = screen_access.allowed()
+        except Exception:
+            self.permission_status.setText('Не удалось проверить доступ. Откройте системные настройки и перезапустите приложение.'); return False
+        self.permission_status.setText('Доступ к экрану подтверждён.' if granted else 'macOS не подтверждает доступ этой версии. Включённый переключатель старой версии не гарантирует доступ после обновления.')
+        self.permission_help.setVisible(not granted and sys.platform == 'darwin')
+        self.permission_button.setEnabled(not granted and not self.permission_requested)
+        self.permission_repair.setEnabled(not granted)
+        if granted: self.preferences.setValue('screen/lastGrantedVersion', VERSION)
+        return granted
+
+    def open_screen_settings(self):
+        QDesktopServices.openUrl(QUrl('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'))
+
+    def request_permission(self):
+        if self.permission_requested: self.open_screen_settings(); return
+        self.permission_requested = True
+        try: screen_access.request()
+        except Exception as error: self.permission_status.setText('Не удалось запросить доступ: ' + str(error)); return
+        self.refresh_permission(); self.open_screen_settings()
+
+    def repair_permission(self):
+        if QMessageBox.question(self, 'Восстановить доступ?', 'Будет сброшено только разрешение записи экрана OxyTranslateGame. macOS попросит выдать его заново. Настройки и модели сохранятся. Продолжить?') != QMessageBox.Yes: return
+        try: screen_access.reset_current_app()
+        except Exception as error:
+            QMessageBox.warning(self, 'Восстановление доступа', 'Не удалось сбросить разрешение. Удалите OxyTranslateGame из списка записи экрана и добавьте снова.\n' + str(error)); return
+        self.permission_requested = False; self.request_permission()
+
+    def restart_app(self):
+        if self.active:
+            self.set_status('Дождитесь завершения текущей операции перед перезапуском.'); return
+        try:
+            if sys.platform == 'darwin' and getattr(sys, 'frozen', False):
+                target = mac_bundle(sys.executable)
+                subprocess.Popen(['/bin/sh', '-c', 'while kill -0 "$1" 2>/dev/null; do sleep 0.2; done; /usr/bin/open "$2"', 'restart', str(os.getpid()), str(target)], start_new_session=True)
+            else: subprocess.Popen([sys.executable] + ([] if getattr(sys, 'frozen', False) else [str(Path(__file__).resolve())]), start_new_session=True)
+        except Exception as error:
+            QMessageBox.warning(self, 'Перезапуск', str(error)); return
+        self.quit()
 
     def build_models(self):
         layout = self.page('ДВИЖКИ ПЕРЕВОДА', 'Два способа читать игру', 'Первичная загрузка моделей требует интернета. Сам перевод — на твоём компьютере.')
@@ -251,7 +330,8 @@ class Main(QMainWindow):
     def open_page(self, index):
         self.pages.setCurrentIndex(index)
         for n, item in enumerate(self.nav_buttons): item.setChecked(n == index)
-    def show_settings(self): self.show(); self.raise_(); self.activateWindow()
+    def show_main(self): self.show(); self.raise_(); self.activateWindow()
+    def show_settings(self): self.open_page(4); self.show_main()
     def save_glossary(self):
         (data_dir() / 'glossary.txt').write_text(self.glossary.toPlainText(), encoding='utf-8'); self.set_status('Словарь сохранён'); self.last = ''
     def clear_history(self): self.history.clear(); self.history_text.clear(); self.last = ''
@@ -273,21 +353,10 @@ class Main(QMainWindow):
 
     def select_region(self):
         if self.active: self.set_status('Дождитесь завершения текущей операции или нажмите «Стоп».'); return
-        if sys.platform == 'darwin':
-            cg = ctypes.CDLL('/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics')
-            cg.CGPreflightScreenCaptureAccess.restype = ctypes.c_bool
-            if not cg.CGPreflightScreenCaptureAccess():
-                self.set_status('macOS не подтверждает разрешение записи экрана. После обновления может потребоваться повторное разрешение и перезапуск.')
-                dialog = QMessageBox(self); dialog.setWindowTitle('Доступ к записи экрана'); dialog.setText('macOS не подтверждает доступ для этой копии приложения.')
-                dialog.setInformativeText('Если переключатель уже включён: завершите приложение, удалите старую запись OxyTranslateGame в настройках записи экрана, добавьте используемую копию заново и перезапустите её. Временная подпись релиза может меняться при обновлении.\n\nЗапущенный файл: ' + sys.executable)
-                request = dialog.addButton('Запросить доступ', QMessageBox.AcceptRole); request.setEnabled(not self.permission_requested)
-                settings = dialog.addButton('Открыть настройки', QMessageBox.ActionRole)
-                dialog.addButton('Отмена', QMessageBox.RejectRole); dialog.exec()
-                if dialog.clickedButton() == settings:
-                    QDesktopServices.openUrl(QUrl('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'))
-                elif dialog.clickedButton() == request and not self.permission_requested:
-                    self.permission_requested = True; cg.CGRequestScreenCaptureAccess.restype = ctypes.c_bool; cg.CGRequestScreenCaptureAccess()
-                return
+        if not self.refresh_permission():
+            self.show_settings()
+            self.set_status('Доступ к экрану не подтверждён. В настройках есть шаги восстановления.')
+            return
         self.stop(); self.reader.hide(); self.hide()
         for screen in QApplication.screens():
             selector = Selector(screen); selector.selected.connect(self.selected); selector.cancelled.connect(self.cancel_selection); self.selectors.append(selector); selector.show(); selector.raise_()
@@ -295,7 +364,7 @@ class Main(QMainWindow):
     def close_selectors(self):
         for selector in self.selectors: selector.close(); selector.deleteLater()
         self.selectors.clear()
-    def cancel_selection(self): self.close_selectors(); self.show_settings(); self.set_status('Выделение отменено')
+    def cancel_selection(self): self.close_selectors(); self.show_main(); self.set_status('Выделение отменено')
     def selected(self, screen, area):
         self.region = (screen, QRect(area)); self.last = ''; self.reader_placed = False; self.close_selectors()
         self.region_label.setText(f'{area.width()} × {area.height()} · {screen.name()}')
@@ -402,7 +471,7 @@ def main():
         except Exception as error:
             if sys.stderr: print(str(error), file=sys.stderr)
             return 1
-    app = QApplication(sys.argv); app.setApplicationName('OxyTranslateGame'); app.setOrganizationName('OxyFire'); app.setQuitOnLastWindowClosed(False); app.setStyleSheet(STYLE)
+    app = QApplication(sys.argv); app.setApplicationName('OxyTranslateGame'); app.setOrganizationName('OxyFire'); app.setQuitOnLastWindowClosed(False); app.setStyle('Fusion')
     window = Main(); window.show(); app.aboutToQuit.connect(window.hotkey.close)
     return app.exec()
 

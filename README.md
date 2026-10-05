@@ -74,3 +74,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [third-party notices](desktop/THIRD_P
 ## Updates
 
 Release checks run at startup and every six hours. Manual check, Later, Skip version and an automatic-check toggle are available. Click Update to download the matching archive, verify its SHA-256 digest from GitHub, replace the installed app and restart. A confirmation is shown first; the previous application is retained beside the installation for recovery. Models and settings remain in their data folder. Only public release metadata is requested, never screenshots or dialogue. Preview builds include newer preview releases. Ad-hoc macOS builds may need Screen Recording permission granted again after replacement; a stable Developer ID signature is needed for durable public-release identity.
+
+### Оформление и доступ к экрану
+
+В разделе **Настройки** находятся тема (системная, светлая или тёмная), режим перевода, интервал слежения и обновления. Выбор сохраняется автоматически и применяется также к окну перевода.
+
+На macOS здесь показан фактический статус разрешения записи экрана. Если после обновления переключатель включён, а доступ не подтверждён, выключите и включите его и перезапустите приложение. Кнопка **Восстановить доступ** после подтверждения сбрасывает только разрешение OxyTranslateGame, чтобы выдать его заново. Автоматического сброса и повторных системных запросов нет.
+
+Текущие Mac-сборки подписаны временной подписью: разрешение может потребоваться заново после обновления. Для сохранения идентичности между публичными релизами необходима постоянная подпись Developer ID.
