@@ -48,7 +48,7 @@ class UpdateTests(unittest.TestCase):
             base = Path(root); installed = base/'Applications'/'App.app'
             binary = installed/'Contents'/'MacOS'/'App'; binary.parent.mkdir(parents=True); binary.touch()
             shortcut = base/'Shortcut.app'; shortcut.symlink_to(installed, target_is_directory=True)
-            self.assertEqual(updater.mac_bundle(shortcut/'Contents'/'MacOS'/'App'), installed)
+            self.assertEqual(updater.mac_bundle(shortcut/'Contents'/'MacOS'/'App'), installed.resolve())
 
     def test_mac_swap_and_backup(self):
         if sys.platform != 'darwin': self.skipTest('macOS helper')
