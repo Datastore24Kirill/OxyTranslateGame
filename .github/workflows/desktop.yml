@@ -22,6 +22,10 @@ jobs:
       - run: python -m pip install -r desktop/requirements.txt
       - run: python -m unittest discover -s desktop/tests -v
       - run: python desktop/build.py
+      - name: Smoke test packaged OCR
+        shell: bash
+        run: |
+          python desktop/smoke.py
       - name: Build Windows installer
         if: runner.os == 'Windows'
         shell: pwsh

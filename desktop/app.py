@@ -281,7 +281,8 @@ class Main(QMainWindow):
 
     def finished(self, token, value, error, kind):
         self.active = None; self.progress.hide()
-        if token != self.token: return
+        if token != self.token:
+            self.set_status('Остановлено'); return
         if error:
             self.set_status(error); self.timer.stop(); self.watch.setChecked(False)
             if kind == 'translate': self.show_reader()
@@ -305,6 +306,19 @@ class Main(QMainWindow):
 
 
 def main():
+    if '--self-test' in sys.argv:
+        try:
+            import numpy as np
+            from PIL import Image, ImageDraw, ImageFont
+            image = Image.new('RGB', (600, 100), 'white')
+            ImageDraw.Draw(image).text((20, 20), 'Talk to Rachel', fill='black', font=ImageFont.load_default(size=34))
+            text = LocalEngines().read(np.asarray(image)[:, :, ::-1].copy())
+            if 'Rachel' not in text: raise RuntimeError('Bundled OCR did not recognize fixture')
+            if sys.stdout: print('SELF_TEST_OK: bundled OCR recognized fixture', flush=True)
+            return 0
+        except Exception as error:
+            if sys.stderr: print(str(error), file=sys.stderr)
+            return 1
     app = QApplication(sys.argv); app.setApplicationName('OxyTranslateGame'); app.setOrganizationName('OxyFire'); app.setQuitOnLastWindowClosed(False); app.setStyleSheet(STYLE)
     window = Main(); window.show(); app.aboutToQuit.connect(window.hotkey.close)
     return app.exec()

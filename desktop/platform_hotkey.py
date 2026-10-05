@@ -44,3 +44,4 @@ class Hotkey(QObject):
         elif sys.platform == 'darwin' and self.ok:
             self.carbon.UnregisterEventHotKey(self.key)
             self.carbon.RemoveEventHandler(self.handler)
+        self.ok = False

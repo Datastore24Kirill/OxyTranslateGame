@@ -14,6 +14,8 @@ command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--win
     '--name', 'OxyTranslateGame', '--distpath', 'dist/desktop', '--workpath', 'build/desktop',
     '--specpath', 'build', '--icon', str(icon), '--paths', str(ROOT/'desktop'),
     '--add-data', str(ROOT/'desktop/AppIcon.png') + os.pathsep + '.',
+    '--add-data', str(ROOT/'desktop/THIRD_PARTY.md') + os.pathsep + '.',
+    '--add-data', str(ROOT/'LICENSE') + os.pathsep + '.',
     '--collect-all', 'rapidocr_onnxruntime', '--collect-all', 'ctranslate2',
     '--collect-all', 'onnxruntime', '--collect-all', 'sentencepiece', '--collect-data', 'certifi',
     '--copy-metadata', 'PySide6_Essentials', '--copy-metadata', 'shiboken6',
