@@ -20,7 +20,7 @@ import screen_access
 from releases import check_release
 from updater import download, mac_bundle, stage_replacement, launch_swap
 
-VERSION = '0.2.5'
+VERSION = '0.2.6'
 
 
 class Signals(QObject):
@@ -302,9 +302,16 @@ class Main(QMainWindow):
     def request_permission(self):
         if self.permission_requested: self.open_screen_settings(); return
         self.permission_requested = True
-        try: screen_access.request()
+        try:
+            if not self.preferences.value('screen/legacyIdentityMigrated', False, type=bool):
+                screen_access.remove_legacy_permission()
+                self.preferences.setValue('screen/legacyIdentityMigrated', True)
+            granted = screen_access.request()
         except Exception as error: self.permission_status.setText('Не удалось запросить доступ: ' + str(error)); return
-        self.refresh_permission(); self.open_screen_settings()
+        self.refresh_permission()
+        self.permission_feedback.setText('Разрешение получено. Можно выбрать область.' if granted else 'Запрос отправлен macOS для этой копии приложения. Подтвердите разрешение в системном окне. Если macOS требует перезапуск, нажмите «Перезапустить приложение».')
+        self.permission_feedback.show()
+        if not granted: self.open_screen_settings()
 
     def repair_permission(self):
         if QMessageBox.question(self, 'Восстановить доступ?', 'Будет сброшено только разрешение записи экрана OxyTranslateGame. macOS попросит выдать его заново. Настройки и модели сохранятся. Продолжить?') != QMessageBox.Yes: return
@@ -378,7 +385,8 @@ class Main(QMainWindow):
         if self.active: self.set_status('Дождитесь завершения текущей операции или нажмите «Стоп».'); return
         if not self.refresh_permission():
             self.show_settings()
-            self.set_status('Доступ к экрану не подтверждён. В настройках есть шаги восстановления.')
+            self.set_status('Запрашиваю доступ к экрану для текущей копии приложения…')
+            if not self.permission_requested: self.request_permission()
             return
         self.stop(); self.reader.hide(); self.hide()
         for screen in QApplication.screens():
