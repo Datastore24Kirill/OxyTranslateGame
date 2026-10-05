@@ -70,3 +70,7 @@ Windows installer: compile `desktop/installer.iss` with Inno Setup 6 after the P
 The original macOS-only Apple Translation implementation remains in `Sources/` for reference and development (`swift test`, `scripts/build-app.sh`). Its requirements differ (macOS 15+) and it is not the cross-platform release.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [third-party notices](desktop/THIRD_PARTY.md).
+
+## Updates
+
+Release checks run at startup and every six hours. Manual check, Later, Skip version and an automatic-check toggle are available. The download button opens the GitHub release; installation remains explicit. Only public release metadata is requested, never screenshots or dialogue. Preview builds include newer preview releases. Ad-hoc macOS builds may need Screen Recording permission granted again after replacement; a stable Developer ID signature is needed for durable public-release identity.

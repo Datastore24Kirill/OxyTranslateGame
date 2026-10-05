@@ -3,11 +3,12 @@ import json
 import os
 import sys
 import threading
+import time
 from collections import deque
 from pathlib import Path
 from urllib.parse import urlencode
 
-from PySide6.QtCore import Qt, QRect, Signal, QObject, QRunnable, QThreadPool, QTimer, QUrl
+from PySide6.QtCore import Qt, QRect, Signal, QObject, QRunnable, QThreadPool, QTimer, QUrl, QSettings
 from PySide6.QtGui import QColor, QPainter, QPen, QFont, QKeySequence, QShortcut, QDesktopServices, QIcon, QImage
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QStackedWidget, QComboBox, QTextEdit, QPlainTextEdit, QCheckBox,
@@ -15,8 +16,9 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
 from engines import LocalEngines, data_dir, normalize, parse_glossary
 from platform_hotkey import Hotkey
 from theme import STYLE
+from releases import check_release
 
-VERSION = '0.2.1'
+VERSION = '0.2.2'
 
 
 class Signals(QObject):
@@ -107,6 +109,7 @@ class Reader(QWidget):
 class Main(QMainWindow):
     def __init__(self):
         super().__init__(); self.setWindowTitle('OxyTranslateGame'); self.resize(1020, 780); self.setMinimumSize(880, 690)
+        self.preferences = QSettings(); self.update_job = None; self.update_info = None; self.update_later_until = 0; self.permission_requested = False
         self.engine = LocalEngines(); self.pool = QThreadPool(); self.pool.setMaxThreadCount(1)
         self.token = 0; self.active = None; self.cancel = threading.Event(); self.region = None; self.selectors = []
         self.history = deque(maxlen=30); self.last = ''; self.current_original = ''; self.capture_pending = False; self.reader_placed = False
@@ -119,7 +122,14 @@ class Main(QMainWindow):
         self.pages = QStackedWidget(); self.nav_buttons = []
         for index, title in enumerate(['Перевод', 'Модели', 'Имена и термины', 'История']):
             item = button(title, lambda checked=False, n=index: self.open_page(n)); item.setObjectName('Nav'); item.setCheckable(True); nav.addWidget(item); self.nav_buttons.append(item)
-        nav.addStretch(); nav.addWidget(label('●  LOCAL FIRST', 'Eyebrow')); nav.addWidget(label('Mac + Windows\nv' + VERSION, 'Muted'))
+        nav.addStretch()
+        self.update_notice = label('', 'Muted'); self.update_notice.hide(); nav.addWidget(self.update_notice)
+        self.update_open = button('Скачать обновление', self.open_update); self.update_open.hide(); nav.addWidget(self.update_open)
+        self.update_skip = button('Пропустить версию', self.skip_update); self.update_skip.hide(); nav.addWidget(self.update_skip)
+        self.update_later = button('Позже', self.defer_update); self.update_later.hide(); nav.addWidget(self.update_later)
+        nav.addWidget(button('Проверить версию', lambda: self.check_updates(True)))
+        self.auto_updates = QCheckBox('Автопроверка GitHub'); self.auto_updates.setChecked(self.preferences.value('updates/auto', True, type=bool)); self.auto_updates.toggled.connect(lambda value: self.preferences.setValue('updates/auto', value)); nav.addWidget(self.auto_updates)
+        nav.addWidget(label('●  LOCAL FIRST', 'Eyebrow')); nav.addWidget(label('Mac + Windows\nv' + VERSION, 'Muted'))
         base.addWidget(sidebar); base.addWidget(self.pages, 1)
         self.build_translate(); self.build_models(); self.build_glossary(); self.build_history(); self.open_page(0)
         self.timer = QTimer(self); self.timer.timeout.connect(lambda: self.capture(False))
@@ -130,7 +140,40 @@ class Main(QMainWindow):
         if icon_path.exists():
             app_icon = QIcon(str(icon_path)); QApplication.instance().setWindowIcon(app_icon); self.setWindowIcon(app_icon); self.reader.setWindowIcon(app_icon); self.tray.setIcon(app_icon)
         menu = QMenu(); menu.addAction('Выбрать область', self.select_region); menu.addAction('Остановить', self.stop); menu.addAction('Открыть настройки', self.show_settings); menu.addAction('Выход', self.quit)
+        menu.addAction('Проверить обновления', lambda: self.check_updates(True))
         self.tray.setContextMenu(menu); self.tray.show()
+        self.update_timer = QTimer(self); self.update_timer.timeout.connect(self.check_updates); self.update_timer.start(6 * 60 * 60 * 1000)
+        QTimer.singleShot(12000, self.check_updates)
+
+    def check_updates(self, manual=False):
+        if self.update_job or (not manual and (not self.auto_updates.isChecked() or time.monotonic() < self.update_later_until)): return
+        self.update_job = Job(0, lambda progress: check_release('Datastore24Kirill/OxyTranslateGame', VERSION, allow_preview=True))
+        self.update_job.signals.done.connect(lambda token, info, error: self.update_checked(info, error, manual))
+        QThreadPool.globalInstance().start(self.update_job)
+
+    def update_checked(self, info, error, manual):
+        self.update_job = None
+        if error:
+            if manual: QMessageBox.information(self, 'Обновления', 'Не удалось проверить релизы. Проверьте подключение и повторите позже.')
+            return
+        if not info:
+            if manual: QMessageBox.information(self, 'Обновления', 'Новых готовых сборок нет.')
+            return
+        if not manual and self.preferences.value('updates/skipped', '') == info['latest']: return
+        self.update_info = info
+        self.update_notice.setText('Доступна версия ' + info['latest'] + (' (предварительная)' if info['preview'] else ''))
+        self.update_notice.show(); self.update_open.show(); self.update_skip.show(); self.update_later.show()
+
+    def open_update(self):
+        if self.update_info: QDesktopServices.openUrl(QUrl(self.update_info['url']))
+
+    def skip_update(self):
+        if self.update_info: self.preferences.setValue('updates/skipped', self.update_info['latest'])
+        self.update_notice.hide(); self.update_open.hide(); self.update_skip.hide(); self.update_later.hide()
+
+    def defer_update(self):
+        self.update_later_until = time.monotonic() + 6 * 60 * 60
+        self.update_notice.hide(); self.update_open.hide(); self.update_skip.hide(); self.update_later.hide()
 
     def page(self, eyebrow, title, subtitle):
         widget = QWidget(); layout = QVBoxLayout(widget); layout.setContentsMargins(32, 28, 32, 24); layout.setSpacing(17)
@@ -205,9 +248,17 @@ class Main(QMainWindow):
             cg = ctypes.CDLL('/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics')
             cg.CGPreflightScreenCaptureAccess.restype = ctypes.c_bool
             if not cg.CGPreflightScreenCaptureAccess():
-                cg.CGRequestScreenCaptureAccess()
-                QDesktopServices.openUrl(QUrl('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'))
-                self.set_status('Разрешите запись экрана для OxyTranslateGame и перезапустите приложение.'); return
+                self.set_status('macOS не подтверждает разрешение записи экрана. После обновления может потребоваться повторное разрешение и перезапуск.')
+                dialog = QMessageBox(self); dialog.setWindowTitle('Доступ к записи экрана'); dialog.setText('macOS не подтверждает доступ для этой копии приложения.')
+                dialog.setInformativeText('Если переключатель уже включён: завершите приложение, удалите старую запись OxyTranslateGame в настройках записи экрана, добавьте используемую копию заново и перезапустите её. Временная подпись релиза может меняться при обновлении.\n\nЗапущенный файл: ' + sys.executable)
+                request = dialog.addButton('Запросить доступ', QMessageBox.AcceptRole); request.setEnabled(not self.permission_requested)
+                settings = dialog.addButton('Открыть настройки', QMessageBox.ActionRole)
+                dialog.addButton('Отмена', QMessageBox.RejectRole); dialog.exec()
+                if dialog.clickedButton() == settings:
+                    QDesktopServices.openUrl(QUrl('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'))
+                elif dialog.clickedButton() == request and not self.permission_requested:
+                    self.permission_requested = True; cg.CGRequestScreenCaptureAccess.restype = ctypes.c_bool; cg.CGRequestScreenCaptureAccess()
+                return
         self.stop(); self.reader.hide(); self.hide()
         for screen in QApplication.screens():
             selector = Selector(screen); selector.selected.connect(self.selected); selector.cancelled.connect(self.cancel_selection); self.selectors.append(selector); selector.show(); selector.raise_()
