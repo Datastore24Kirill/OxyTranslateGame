@@ -4,6 +4,8 @@ A small native macOS app that translates text from any selected screen region. B
 
 **macOS 15 or newer.** Uses Apple Vision for OCR, ScreenCaptureKit for capture, and Apple's on-device Translation framework. No API keys, paid translation service, Python runtime, or external packages.
 
+[Download the macOS preview](https://github.com/Datastore24Kirill/OxyTranslateGame/releases/tag/v0.1.0) · Apple silicon binary, macOS 15+. Source builds are available for other supported architectures.
+
 ## Use
 
 1. Open the app and allow **Screen Recording** in System Settings → Privacy & Security. Relaunch if macOS requests it.
