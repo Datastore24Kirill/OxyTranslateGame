@@ -1,0 +1,16 @@
+OxyTranslateGame 0.3 — preview
+
+Ready-to-run macOS Apple Silicon app, Windows x64 installer and portable ZIP. No Python installation or source build is required.
+
+- System / Russian / English interface with live switching; independent source/target languages and conservative auto-detection.
+- Fast, literary and literal modes; local context and glossaries; editable OCR output, enlargement and contrast.
+- Game profiles, import/export, up to eight regions and sequential monitoring; optional window attachment and pause when minimized.
+- Reader click-through and compact mode; configurable global shortcuts, UI scaling, light/dark/system themes.
+- Searchable history, CSV and opt-in local persistence; model catalog/install/cancel/delete and economy mode.
+- First-run guide, timing metrics, local diagnostic export with explicit opt-ins for dialogue/screenshots; stable/preview updates and release notes.
+
+This is a preview for real-game testing. OCR is verified for English; selecting a translation language does not guarantee OCR for that alphabet. Window attachment is per session and per monitor. Native operations may need to finish after cancellation.
+
+Mac builds are ad-hoc signed, not notarized; screen recording permission may need to be granted again after updating. SignPath Foundation declined the application due to insufficient public visibility, so Windows builds remain unsigned. No paid signing service is configured.
+
+SHA256SUMS.txt covers every download. See docs/features-0.3.md for details and verification limits.

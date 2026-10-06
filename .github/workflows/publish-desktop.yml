@@ -1,0 +1,64 @@
+name: Publish verified desktop preview
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful Desktop installers run ID
+        required: true
+      version:
+        description: Version such as 0.3.0
+        required: true
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_ID: ${{ inputs.run_id }}
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate source run
+        id: source
+        shell: python
+        run: |
+          import os, re, json, subprocess, base64
+          repo=os.environ['GITHUB_REPOSITORY'];run=os.environ['RUN_ID'];version=os.environ['RELEASE_VERSION']
+          assert re.fullmatch(r'[0-9]+',run) and re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',version)
+          data=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{run}']))
+          assert data['conclusion']=='success' and data['head_branch']=='main'
+          assert data['path']=='.github/workflows/desktop.yml'
+          sha=data['head_sha']
+          source=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/contents/desktop/app.py?ref={sha}']))
+          code=base64.b64decode(source['content']).decode()
+          assert re.search(r'VERSION\s*=\s*[\x22\x27]'+re.escape(version)+r'[\x22\x27]',code)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('sha='+sha+'\n')
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id }}
+          pattern: desktop-*
+          merge-multiple: true
+          path: packages
+      - name: Verify archives and write hashes
+        shell: python
+        run: |
+          import os, pathlib, hashlib, zipfile
+          root=pathlib.Path('packages');v=os.environ['RELEASE_VERSION']
+          names=[f'OxyTranslateGame-{v}-macOS-arm64.zip',f'OxyTranslateGame-{v}-Windows-x64-Portable.zip',f'OxyTranslateGame-{v}-Windows-x64-Setup.exe']
+          lines=[]
+          for name in names:
+            p=root/name;assert p.is_file() and p.stat().st_size>1000000
+            if p.suffix=='.zip':
+              with zipfile.ZipFile(p) as z:assert z.testzip() is None
+            lines.append(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+name)
+          (root/'SHA256SUMS.txt').write_text('\n'.join(lines)+'\n')
+      - name: Create draft preview with verified downloads
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "v${RELEASE_VERSION}" packages/* --target "$SOURCE_SHA" --draft --prerelease --title "OxyTranslateGame ${RELEASE_VERSION} — Preview" --notes-file "docs/release-${RELEASE_VERSION}.txt"
