@@ -76,9 +76,35 @@ def validate_profile(value):
             or rect[1] + rect[3] > 1.001
         ):
             raise ValueError("Invalid region bounds")
-        clean.append(
-            {"screen": r["screen"][:200], "name": r["name"][:80], "rect": rect}
-        )
+        item = {"screen": r["screen"][:200], "name": r["name"][:80], "rect": rect}
+        if r.get("binding"):
+            binding = r["binding"]
+            if (
+                not isinstance(binding, dict)
+                or not isinstance(binding.get("owner"), str)
+                or not binding["owner"]
+                or len(binding["owner"]) > 200
+                or not isinstance(binding.get("title"), str)
+                or len(binding["title"]) > 500
+            ):
+                raise ValueError("Invalid window identity")
+            relative = binding.get("relative")
+            if (
+                not isinstance(relative, list)
+                or len(relative) != 4
+                or any(type(n) not in (int, float) or not 0 <= n <= 1 for n in relative)
+                or relative[2] <= 0
+                or relative[3] <= 0
+                or relative[0] + relative[2] > 1.001
+                or relative[1] + relative[3] > 1.001
+            ):
+                raise ValueError("Invalid window region")
+            item["binding"] = {
+                "owner": binding["owner"],
+                "title": binding["title"],
+                "relative": relative,
+            }
+        clean.append(item)
     p["regions"] = clean
     p["compact"] = bool(p["compact"])
     return p

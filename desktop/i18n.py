@@ -274,6 +274,50 @@ EN.update(
         "Размер шрифта": "Font size",
     }
 )
+EN.update(
+    {
+        "Подключение к серверу…": "Connecting to server…",
+        "Отменить": "Cancel",
+        "Прошло: {0} с": "Elapsed: {0} s",
+        "Скачивание обновления": "Downloading update",
+        "Проверка контрольной суммы…": "Verifying checksum…",
+        "Распаковка обновления…": "Extracting update…",
+        "Подготовка установки…": "Preparing installation…",
+        "Ожидание завершения перевода…": "Waiting for translation to finish…",
+        "Установка и перезапуск…": "Installing and restarting…",
+        "{0:.1f} / {1:.1f} МБ · {2:.1f} МБ/с": "{0:.1f} / {1:.1f} MB · {2:.1f} MB/s",
+        "Обновление отменено": "Update cancelled",
+        "Не удалось восстановить доступ: ": "Could not restore access: ",
+    }
+)
+EN.update(
+    {
+        "OCR: загружено {0:.1f} МБ": "OCR: downloaded {0:.1f} MB",
+        "Скачайте OCR-модель выбранного языка на вкладке «Модели».": "Download the selected language OCR model in Models.",
+        "OCR-модель повреждена. Скачайте её повторно.": "OCR model is corrupted. Download it again.",
+        "Скачать OCR для языка игры": "Download OCR for game language",
+        "Удалить OCR-модель": "Remove OCR model",
+        "Встроенное OCR: английский. Для японского, корейского и китайского выберите исходный язык вручную.": "Built-in OCR: English. Select Japanese, Korean or Chinese manually to use their models.",
+        "Выберите японский, корейский или китайский как язык игры.": "Select Japanese, Korean or Chinese as the game language.",
+        "Японский, корейский и китайский требуют отдельной OCR-модели. Выберите язык игры вручную и скачайте модель.": "Japanese, Korean and Chinese need separate OCR models. Select the game language manually and download its model.",
+    }
+)
+EN.update(
+    {
+        "Область пересекает границу экранов. Переместите окно целиком на один экран.": "The region crosses display boundaries. Move the window entirely onto one display."
+    }
+)
+EN.update(
+    {
+        "Не удалось определить приложение этого окна. Выберите другое окно.": "Could not identify this window’s application. Choose another window."
+    }
+)
+EN.update(
+    {
+        "Восстановить доступ после обновления": "Restore access after update",
+        "macOS сохранила доступ для прежней версии. Восстановление перезапустит приложение и вызовет новый системный запрос.": "macOS retained access for the previous version. Recovery restarts the app and requests permission again.",
+    }
+)
 REVERSE = {v: k for k, v in EN.items()}
 
 

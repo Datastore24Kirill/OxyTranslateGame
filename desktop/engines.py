@@ -79,6 +79,7 @@ class LocalEngines:
         self.translator = None
         self.tokenizer = None
         self.ocr = None
+        self.ocr_language = None
         self.loaded_pair = None
         self.http = requests.Session()
         self.local = requests.Session()
@@ -148,15 +149,34 @@ class LocalEngines:
             os.replace(extracted, self.directory / f"{source}-{target}")
         progress(tr("Модель готова. Интернет больше не нужен."))
 
-    def read(self, image):
-        if self.ocr is None:
+    def read(self, image, source="en"):
+        from ocr_models import MODELS, path_for
+
+        key = source if source in MODELS else "en"
+        if self.ocr is None or self.ocr_language != key:
             from rapidocr_onnxruntime import RapidOCR
 
-            self.ocr = RapidOCR()
-        result, _ = self.ocr(image)
+            kwargs = {}
+            if key in MODELS:
+                model = path_for(self.directory, key)
+                if not model.exists():
+                    raise RuntimeError(
+                        tr("Скачайте OCR-модель выбранного языка на вкладке «Модели».")
+                    )
+                import hashlib
+
+                if hashlib.sha256(model.read_bytes()).hexdigest() != MODELS[key][1]:
+                    raise RuntimeError(
+                        tr("OCR-модель повреждена. Скачайте её повторно.")
+                    )
+                kwargs["rec_model_path"] = str(model)
+            self.ocr = RapidOCR(**kwargs)
+            self.ocr_language = key
+        # The bundled angle classifier can flip upright Hangul incorrectly.
+        result, _ = self.ocr(image, use_cls=key not in MODELS)
         if not result:
             return ""
-        return "\n".join((row[1] for row in result if float(row[2]) > 0.45))
+        return "\n".join(row[1] for row in result if float(row[2]) > 0.45)
 
     def fast(self, text, source="en", target="ru"):
         validate_pair(source, target)

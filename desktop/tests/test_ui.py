@@ -29,6 +29,7 @@ class UITests(unittest.TestCase):
         self.settings.setValue("onboarding/done", True)
         self.patches = [
             patch("app.QSettings", return_value=self.settings),
+            patch("app.Main.check_updates"),
             patch("app.Hotkey"),
             patch("platform_hotkey.Hotkey"),
             patch("app.screen_access.allowed", return_value=True),
@@ -117,3 +118,39 @@ class UITests(unittest.TestCase):
         self.w.compact_reader.setChecked(False)
         self.qt.processEvents()
         self.assertTrue(self.w.reader.reader_controls.isVisible())
+
+    def test_upgrade_permission_repair_once_and_before_restart_request(self):
+        self.settings.setValue("screen/lastGrantedVersion", "0.2.7")
+        with (
+            patch("app.sys.platform", "darwin"),
+            patch("app.screen_access.allowed", return_value=False),
+            patch("app.screen_access.reset_current_app") as reset,
+            patch.object(self.w, "restart_app") as restart,
+            patch("app.screen_access.request", return_value=False) as request,
+            patch.object(self.w, "open_screen_settings"),
+        ):
+            self.w.request_permission()
+            reset.assert_called_once()
+            restart.assert_called_once()
+            request.assert_not_called()
+            self.assertEqual(self.settings.value("screen/repairedVersion"), app.VERSION)
+            self.w.request_permission()
+            reset.assert_called_once()
+            request.assert_called_once()
+
+    def test_update_progress_visible_and_cancel_signal(self):
+        from update_ui import UpdateProgress
+
+        dialog = UpdateProgress(self.w)
+        dialog.show()
+        events = []
+        dialog.cancel_requested.connect(lambda: events.append("cancel"))
+        dialog.update_progress(
+            {"stage": "download", "received": 50, "total": 100, "speed": 10}
+        )
+        self.assertEqual(dialog.bar.value(), 50)
+        self.assertTrue(dialog.isVisible())
+        dialog.cancel()
+        self.assertEqual(events, ["cancel"])
+        self.assertFalse(dialog.cancel_button.isEnabled())
+        dialog.finish()

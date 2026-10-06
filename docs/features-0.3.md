@@ -14,7 +14,7 @@ Save explicitly after changing profile settings. Import validates fields and bou
 
 ## Области и окно / capture and reader
 
-До восьми областей. В режиме слежения можно переключать их по очереди; каждая реплика должна стабилизироваться перед переводом. Привязка к выбранному окну поддерживает изменение размера и перемещение в пределах текущего экрана. Свёрнутое/закрытое окно приостанавливает захват. Переход на другой монитор требует нового выделения. Перекрывающие игру окна могут попасть в захват: приложение снимает область экрана, а не скрытое содержимое окна.
+До восьми областей. В режиме слежения можно переключать их по очереди; каждая реплика должна стабилизироваться перед переводом. Привязка к выбранному окну поддерживает изменение размера и перемещение в пределах текущего экрана. Свёрнутое/закрытое окно приостанавливает захват. Привязка сохраняется между запусками и следует за окном на другом мониторе. При неоднозначном совпадении названия или области, пересекающей границу экранов, захват приостанавливается. Перекрывающие игру окна могут попасть в захват: приложение снимает область экрана, а не скрытое содержимое окна.
 
 The reader hides briefly before each capture. Click-through is reversible from the tray menu. Stop or a changed profile/region invalidates old results. Native Argos inference must finish before the worker becomes available; Ollama cancellation closes its stream once a chunk arrives (or a network timeout occurs). Closing the main window hides it and stops monitoring; use Quit in the tray to exit.
 
@@ -46,3 +46,9 @@ Stable is the default channel; previews are opt-in. The update dialog shows rele
 | Intel Mac | No 0.3 build supplied | — | Not claimed as supported by this release |
 
 Native window-bound APIs: [Apple CGWindowListCopyWindowInfo](https://developer.apple.com/documentation/coregraphics/cgwindowlistcopywindowinfo(_:_:)), [Microsoft IsIconic](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-isiconic).
+
+## Изменения 0.3.1
+
+Для японского, корейского и китайского выберите язык игры вручную, затем скачайте его OCR-модель в разделе моделей. Распознавание и перевод выполняются локально. Автоопределение не выбирает CJK-модель. Проверены три синтетических примера; корейская модель может терять пробелы и пунктуацию. Вертикальный текст и игровые шрифты требуют отдельной проверки. Модели: [RapidAI](https://github.com/RapidAI/RapidOCR/blob/main/python/rapidocr/default_models.yaml), PP-OCRv4, версия каталога 3.9.2.
+
+Обновление показывает этап, мегабайты, скорость и время ожидания в отдельном окне. Загрузку можно отменить до установки. Если macOS отклонила старую ad-hoc подпись, кнопка восстановления сбрасывает только доступ этого приложения и после перезапуска вызывает системный запрос. Подтверждение macOS выполняет пользователь. Без Developer ID повторное разрешение после следующего обновления всё ещё возможно.

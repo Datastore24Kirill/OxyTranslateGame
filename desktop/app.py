@@ -61,12 +61,12 @@ from languages import detect_source
 from i18n import tr
 from updater import download, mac_bundle, stage_replacement, launch_swap
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 
 class Signals(QObject):
     done = Signal(int, object, str)
-    progress = Signal(int, str)
+    progress = Signal(int, object)
     recognized = Signal(int, str)
 
 
@@ -473,6 +473,12 @@ class Main(QMainWindow, Features):
         self.stop()
         self.update_open.setEnabled(False)
         cache = data_dir() / "updates"
+        from update_ui import UpdateProgress
+
+        self.update_cancel = threading.Event()
+        self.update_dialog = UpdateProgress(self)
+        self.update_dialog.cancel_requested.connect(self.update_cancel.set)
+        self.update_dialog.show()
 
         def prepare(progress):
             unpacked = download(
@@ -481,18 +487,32 @@ class Main(QMainWindow, Features):
                 "translator",
                 cache,
                 progress,
+                self.update_cancel,
             )
-            return stage_replacement(unpacked, target, "translator")
+            progress({"stage": "stage"})
+            if self.update_cancel.is_set():
+                raise InterruptedError(tr("Обновление отменено"))
+            candidate = stage_replacement(unpacked, target, "translator")
+            if self.update_cancel.is_set():
+                import shutil
+
+                shutil.rmtree(candidate.parent, ignore_errors=True)
+                raise InterruptedError(tr("Обновление отменено"))
+            return candidate
 
         self.install_job = Job(0, prepare)
         self.install_job.signals.progress.connect(
-            lambda token, message: self.set_status(message)
+            lambda token, message: self.update_dialog.update_progress(message)
         )
 
         def prepared(token, candidate, error):
             if error:
+                self.update_dialog.finish()
                 self.install_job = None
                 self.update_open.setEnabled(True)
+                if self.update_cancel.is_set():
+                    self.set_status(tr("Обновление отменено"))
+                    return
                 QMessageBox.warning(
                     self,
                     tr("Обновление не установлено"),
@@ -501,15 +521,26 @@ class Main(QMainWindow, Features):
                 return
 
             def install_when_idle():
+                if self.update_cancel.is_set():
+                    import shutil
+
+                    shutil.rmtree(candidate.parent, ignore_errors=True)
+                    self.update_dialog.finish()
+                    self.install_job = None
+                    self.update_open.setEnabled(True)
+                    return
                 if self.active:
+                    self.update_dialog.update_progress({"stage": "wait"})
                     self.set_status(
                         tr("Обновление готово. Ожидаю завершения текущей операции…")
                     )
                     QTimer.singleShot(500, install_when_idle)
                     return
                 try:
+                    self.update_dialog.update_progress({"stage": "install"})
                     launch_swap(candidate, target, cache, "OxyTranslateGame.exe")
                 except Exception as failure:
+                    self.update_dialog.finish()
                     self.install_job = None
                     self.update_open.setEnabled(True)
                     QMessageBox.warning(self, tr("Обновление"), str(failure))
@@ -786,6 +817,16 @@ class Main(QMainWindow, Features):
             palette.setColor(role, QColor(color))
         app.setPalette(palette)
 
+    def permission_needs_repair(self, granted=None):
+        previous = self.preferences.value("screen/lastGrantedVersion", "")
+        return (
+            sys.platform == "darwin"
+            and bool(previous)
+            and previous != VERSION
+            and self.preferences.value("screen/repairedVersion", "") != VERSION
+            and not (screen_access.allowed() if granted is None else granted)
+        )
+
     def refresh_permission(self):
         try:
             granted = screen_access.allowed()
@@ -814,6 +855,13 @@ class Main(QMainWindow, Features):
             if self.permission_requested
             else tr("Разрешить запись экрана")
         )
+        if self.permission_needs_repair(granted):
+            self.permission_button.setText(tr("Восстановить доступ после обновления"))
+            self.permission_status.setText(
+                tr(
+                    "macOS сохранила доступ для прежней версии. Восстановление перезапустит приложение и вызовет новый системный запрос."
+                )
+            )
         self.permission_details_toggle.setVisible(
             not granted and sys.platform == "darwin"
         )
@@ -869,6 +917,25 @@ class Main(QMainWindow, Features):
         )
 
     def request_permission(self):
+        if self.active:
+            self.set_status(
+                tr("Дождитесь завершения текущей операции перед перезапуском.")
+            )
+            return
+        if self.permission_needs_repair():
+            try:
+                screen_access.reset_current_app()
+            except Exception as error:
+                self.permission_feedback.setText(
+                    tr("Не удалось восстановить доступ: ") + str(error)
+                )
+                self.permission_feedback.show()
+                return
+            self.preferences.setValue("screen/repairedVersion", VERSION)
+            self.preferences.setValue("screen/requestAfterRestart", True)
+            self.preferences.sync()
+            self.restart_app()
+            return
         if self.permission_requested:
             self.open_screen_settings()
             return
@@ -918,6 +985,7 @@ class Main(QMainWindow, Features):
                 + str(error),
             )
             return
+        self.preferences.setValue("screen/repairedVersion", VERSION)
         self.preferences.setValue("screen/requestAfterRestart", True)
         self.preferences.sync()
         self.restart_app()
@@ -1293,7 +1361,7 @@ class Main(QMainWindow, Features):
                         clipLimit=2.0, tileGridSize=(8, 8)
                     ).apply(lab[:, :, 0])
                     frame = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
-                text = self.engine.read(frame)
+                text = self.engine.read(frame, source)
                 ocr_seconds = time.monotonic() - started
                 if token != self.token:
                     return None

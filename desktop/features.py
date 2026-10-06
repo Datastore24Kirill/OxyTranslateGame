@@ -90,7 +90,7 @@ class Features:
         self.pages.widget(0).widget().layout().insertLayout(5, row)
         self.ocr_hint = QLabel(
             tr(
-                "OCR проверено для английского. Для других языков проверьте оригинал перед переводом."
+                "Японский, корейский и китайский требуют отдельной OCR-модели. Выберите язык игры вручную и скачайте модель."
             )
         )
         self.ocr_hint.setWordWrap(True)
@@ -271,6 +271,20 @@ class Features:
         self.profile_combo.currentIndexChanged.connect(self.load_profile)
         if self.profile_store.current:
             self.load_profile()
+        else:
+            from workspace import validate_profile
+
+            try:
+                self.regions = validate_profile(
+                    {
+                        "regions": json.loads(
+                            self.preferences.value("capture/regions", "[]")
+                        )
+                    }
+                )["regions"]
+                self.refresh_regions()
+            except (ValueError, TypeError):
+                self.regions = []
         if self.profile_store.load_error:
             self.set_status(
                 tr(
@@ -430,6 +444,7 @@ class Features:
             }
         )
         self.refresh_regions(len(self.regions) - 1)
+        self.persist_regions()
         return True
 
     def refresh_regions(self, index=0):
@@ -453,6 +468,8 @@ class Features:
         screen = next(
             (s for s in QApplication.screens() if s.name() == r["screen"]), None
         )
+        if not screen and r.get("binding"):
+            screen = QApplication.primaryScreen()
         if not screen:
             self.region = None
             self.set_status(tr("Экран профиля не подключён. Выберите область."))
@@ -482,6 +499,7 @@ class Features:
             self.window_bindings.clear()
             self.region_index = -1
             self.refresh_regions()
+            self.persist_regions()
 
     def set_compact_reader(self, yes):
         self.reader.reader_controls.setVisible(not yes)
@@ -766,6 +784,17 @@ class Features:
         choose = QPushButton(tr(tr("Выбрать языковую пару")))
         choose.clicked.connect(self.choose_catalog_pair)
         layout.addWidget(choose)
+        self.ocr_status = QLabel()
+        self.ocr_status.setWordWrap(True)
+        layout.addWidget(self.ocr_status)
+        row = QHBoxLayout()
+        b = QPushButton(tr("Скачать OCR для языка игры"))
+        b.clicked.connect(self.install_ocr)
+        row.addWidget(b)
+        b = QPushButton(tr("Удалить OCR-модель"))
+        b.clicked.connect(self.remove_ocr)
+        row.addWidget(b)
+        layout.addLayout(row)
         self.catalog_items = []
         self.refresh_local_model()
 
@@ -787,6 +816,62 @@ class Features:
             self.catalog_text.setText(
                 f"{source} → {target}: " + tr(tr("Модель не установлена"))
             )
+        if hasattr(self, "ocr_status"):
+            from ocr_models import MODELS, path_for
+
+            if source in MODELS:
+                model = path_for(self.engine.directory, source)
+                self.ocr_status.setText(
+                    "OCR "
+                    + LANGUAGES[source]
+                    + ": "
+                    + (
+                        tr("Установлена")
+                        + f" · {model.stat().st_size / 1048576:.1f} MB"
+                        if model.exists()
+                        else tr("Модель не установлена")
+                    )
+                )
+            else:
+                self.ocr_status.setText(
+                    tr(
+                        "Встроенное OCR: английский. Для японского, корейского и китайского выберите исходный язык вручную."
+                    )
+                )
+
+    def install_ocr(self):
+        source, _ = self.pair()
+        from ocr_models import MODELS, install
+
+        if source not in MODELS:
+            self.set_status(
+                tr("Выберите японский, корейский или китайский как язык игры.")
+            )
+            return
+        self.launch_job(
+            lambda progress: install(
+                self.engine.directory, source, progress, self.cancel
+            ),
+            "install",
+        )
+
+    def remove_ocr(self):
+        if self.active:
+            return
+        from ocr_models import MODELS, path_for
+
+        source, _ = self.pair()
+        if source not in MODELS:
+            return
+        if (
+            QMessageBox.question(self, tr("Удалить OCR-модель"), LANGUAGES[source])
+            != QMessageBox.Yes
+        ):
+            return
+        self.engine.ocr = None
+        self.engine.ocr_language = None
+        path_for(self.engine.directory, source).unlink(missing_ok=True)
+        self.refresh_local_model()
 
     def refresh_models(self):
 
@@ -948,7 +1033,7 @@ class Features:
         b.clicked.connect(self.bind_window)
         row.addWidget(b)
         b = QPushButton(tr(tr("Отвязать окно")))
-        b.clicked.connect(lambda: self.window_bindings.pop(self.region_index, None))
+        b.clicked.connect(self.detach_window)
         row.addWidget(b)
         self.pages.widget(0).widget().layout().addLayout(row)
 
@@ -1037,6 +1122,11 @@ class Features:
         if not ok:
             return
         item = rows[labels.index(choice)]
+        if not item.get("owner"):
+            self.set_status(
+                tr("Не удалось определить приложение этого окна. Выберите другое окно.")
+            )
+            return
         screen, rect = self.region
         origin = screen.geometry().topLeft()
         scale = screen.devicePixelRatio() if sys.platform == "win32" else 1
@@ -1064,6 +1154,12 @@ class Features:
             "relative": relative,
             "screen": screen.name(),
         }
+        self.regions[self.region_index]["binding"] = {
+            "owner": item.get("owner", ""),
+            "title": item.get("title", ""),
+            "relative": relative,
+        }
+        self.persist_regions()
         self.set_status(
             tr(
                 tr(
@@ -1072,50 +1168,89 @@ class Features:
             )
         )
 
+    def persist_regions(self):
+        from workspace import validate_profile
+
+        regions = validate_profile({"regions": self.regions})["regions"]
+        self.preferences.setValue(
+            "capture/regions", json.dumps(regions, ensure_ascii=False)
+        )
+        if self.profile_store.current:
+            self.profile_store.profiles[self.profile_store.current]["settings"][
+                "regions"
+            ] = regions
+            self.profile_store.save()
+
+    def detach_window(self):
+        self.stop()
+        self.window_bindings.pop(self.region_index, None)
+        if 0 <= self.region_index < len(self.regions):
+            self.regions[self.region_index].pop("binding", None)
+            self.persist_regions()
+
     def track_window(self):
+        saved = (
+            self.regions[self.region_index].get("binding")
+            if 0 <= self.region_index < len(self.regions)
+            else None
+        )
         binding = self.window_bindings.get(self.region_index)
-        if not binding:
+        if not saved and not binding:
             return True
         import window_tracking
 
+        rows = window_tracking.windows()
         row = next(
             (
                 r
-                for r in window_tracking.windows()
-                if r["id"] == binding["id"] and r["pid"] == binding["pid"]
+                for r in rows
+                if binding and r["id"] == binding["id"] and r["pid"] == binding["pid"]
             ),
             None,
         )
+        if row is None and saved:
+            row = window_tracking.match_saved_window(rows, saved)
         if row is None or not row["visible"]:
-            self.set_status(tr(tr("Ожидание окна игры")))
+            self.set_status(tr("Ожидание окна игры"))
             return False
-        screen = next(
-            (s for s in QApplication.screens() if s.name() == binding["screen"]), None
-        )
+        relative = saved["relative"] if saved else binding["relative"]
+        native = window_tracking.absolute_region(row["rect"], relative)
+        if sys.platform == "win32":
+            screen = next(
+                (s for s in QApplication.screens() if s.name() == row.get("monitor")),
+                None,
+            )
+            origin = row.get("monitor_origin", (0, 0))
+        else:
+            x, y, w, h = native
+            from PySide6.QtCore import QPoint
+
+            screen = QApplication.screenAt(QPoint(round(x + w / 2), round(y + h / 2)))
+            origin = (
+                (screen.geometry().x(), screen.geometry().y()) if screen else (0, 0)
+            )
         if screen is None:
-            self.set_status(tr(tr("Ожидание окна игры")))
+            self.set_status(tr("Ожидание окна игры"))
             return False
         scale = screen.devicePixelRatio() if sys.platform == "win32" else 1
-        x, y, w, h = window_tracking.absolute_region(row["rect"], binding["relative"])
-        origin = screen.geometry().topLeft()
-        if sys.platform == "win32" and row.get("monitor") != screen.name():
-            self.set_status(
-                tr("Окно перемещено на другой экран. Выберите область снова.")
-            )
-            return False
-        nx, ny = row.get("monitor_origin", (origin.x(), origin.y()))
-        area = QRect(
-            round((x - nx) / scale),
-            round((y - ny) / scale),
-            round(w / scale),
-            round(h / scale),
-        )
+        area = QRect(*window_tracking.region_on_screen(native, origin, scale))
         if not QRect(0, 0, screen.size().width(), screen.size().height()).contains(
             area
         ):
             self.set_status(
-                tr(tr("Окно перемещено на другой экран. Выберите область снова."))
+                tr(
+                    "Область пересекает границу экранов. Переместите окно целиком на один экран."
+                )
             )
             return False
+        old = self.region
         self.region = (screen, area)
+        if old is None or old[0] != screen:
+            self.reader_placed = False
+        self.window_bindings[self.region_index] = {
+            "id": row["id"],
+            "pid": row["pid"],
+            "relative": relative,
+            "screen": screen.name(),
+        }
         return True

@@ -58,6 +58,8 @@ def windows():
                 {
                     "id": r["kCGWindowNumber"],
                     "pid": r["kCGWindowOwnerPID"],
+                    "owner": r.get("kCGWindowOwnerName", "")[:200],
+                    "title": r.get("kCGWindowName", "")[:500],
                     "name": r.get("kCGWindowOwnerName", "")
                     + " — "
                     + r.get("kCGWindowName", ""),
@@ -91,6 +93,17 @@ def windows():
         u.MonitorFromWindow.restype = w.HANDLE
         u.GetMonitorInfoW.argtypes = [w.HANDLE, ctypes.POINTER(MonitorInfo)]
 
+        kernel = ctypes.windll.kernel32
+        kernel.OpenProcess.argtypes = [w.DWORD, w.BOOL, w.DWORD]
+        kernel.OpenProcess.restype = w.HANDLE
+        kernel.QueryFullProcessImageNameW.argtypes = [
+            w.HANDLE,
+            w.DWORD,
+            w.LPWSTR,
+            ctypes.POINTER(w.DWORD),
+        ]
+        kernel.CloseHandle.argtypes = [w.HANDLE]
+
         @callback
         def each(hwnd, _):
             pid = w.DWORD()
@@ -99,6 +112,20 @@ def windows():
             u.GetWindowTextW(hwnd, title, 1024)
             if not title.value or pid.value == os.getpid():
                 return True
+            owner = ""
+            handle = kernel.OpenProcess(0x1000, False, pid.value)
+            if handle:
+                try:
+                    buffer = ctypes.create_unicode_buffer(32768)
+                    length = w.DWORD(len(buffer))
+                    if kernel.QueryFullProcessImageNameW(
+                        handle, 0, buffer, ctypes.byref(length)
+                    ):
+                        from pathlib import PureWindowsPath
+
+                        owner = PureWindowsPath(buffer.value).name.casefold()
+                finally:
+                    kernel.CloseHandle(handle)
             monitor = MonitorInfo()
             monitor.cbSize = ctypes.sizeof(monitor)
             u.GetMonitorInfoW(u.MonitorFromWindow(hwnd, 2), ctypes.byref(monitor))
@@ -109,6 +136,8 @@ def windows():
                         "id": int(hwnd),
                         "pid": pid.value,
                         "name": title.value,
+                        "owner": owner,
+                        "title": title.value[:500],
                         "monitor": monitor.szDevice,
                         "monitor_origin": (
                             monitor.rcMonitor.left,
@@ -156,4 +185,29 @@ def absolute_region(window, relative):
         round(y + ry * h),
         max(1, round(rw * w)),
         max(1, round(rh * h)),
+    )
+
+
+def match_saved_window(rows, binding):
+    """Never guess between windows with the same saved identity."""
+    matches = [
+        r
+        for r in rows
+        if r.get("owner") == binding.get("owner")
+        and r.get("title") == binding.get("title")
+        and r.get("owner")
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def region_on_screen(native, origin, scale):
+    x, y, w, h = native
+    ox, oy = origin
+    if scale <= 0:
+        raise ValueError("Invalid scale")
+    return (
+        round((x - ox) / scale),
+        round((y - oy) / scale),
+        max(1, round(w / scale)),
+        max(1, round(h / scale)),
     )

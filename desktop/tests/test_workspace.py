@@ -84,3 +84,43 @@ class WorkspaceTests(unittest.TestCase):
             ),
             "en",
         )
+
+
+class SavedWindowTests(unittest.TestCase):
+    def test_reacquires_new_process_but_never_ambiguous_window(self):
+        from window_tracking import match_saved_window, region_on_screen
+
+        saved = {
+            "owner": "Game",
+            "title": "Adventure",
+            "relative": [0.1, 0.2, 0.4, 0.2],
+        }
+        rows = [{"owner": "Game", "title": "Adventure", "id": 25, "pid": 200}]
+        self.assertEqual(match_saved_window(rows, saved)["pid"], 200)
+        self.assertIsNone(match_saved_window(rows + rows, saved))
+        self.assertIsNone(
+            match_saved_window([{"owner": "Other", "title": "Adventure"}], saved)
+        )
+        self.assertEqual(
+            region_on_screen((2100, 200, 800, 200), (1920, 0), 2), (90, 100, 400, 100)
+        )
+
+    def test_binding_survives_export_with_no_process_ids(self):
+        value = {
+            "regions": [
+                {
+                    "screen": "old",
+                    "name": "dialogue",
+                    "rect": [0, 0, 0.5, 0.5],
+                    "binding": {
+                        "owner": "game.exe",
+                        "title": "Game",
+                        "relative": [0, 0.5, 1, 0.5],
+                        "pid": 456,
+                    },
+                }
+            ]
+        }
+        p = validate_profile(value)
+        self.assertNotIn("pid", p["regions"][0]["binding"])
+        self.assertEqual(p["regions"][0]["binding"]["owner"], "game.exe")

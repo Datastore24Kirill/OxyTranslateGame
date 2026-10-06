@@ -1,0 +1,12 @@
+OxyTranslateGame 0.3.1 — preview
+
+Ready-to-run macOS Apple Silicon app and Windows x64 installer/portable ZIP.
+
+- Visible update progress: phase, downloaded MB, speed, elapsed time and cancellation before installation.
+- One-action recovery of stale macOS screen access after an ad-hoc signed update; the system still requires user confirmation.
+- Downloadable local Japanese, Korean and Chinese OCR models, pinned and SHA-256 verified. Select the source language manually in the app, then install its OCR model.
+- Persistent window bindings and monitor-aware coordinates; ambiguous windows and areas spanning monitors pause capture.
+
+CJK smoke checks use synthetic horizontal text. Korean spacing/punctuation and real game fonts need further testing. Auto source detection does not select a CJK OCR model.
+
+Mac builds remain ad-hoc signed and not notarized. Windows builds remain unsigned. See SHA256SUMS.txt and docs/features-0.3.md.
