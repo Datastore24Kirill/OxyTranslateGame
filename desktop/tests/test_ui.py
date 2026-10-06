@@ -106,3 +106,14 @@ class UITests(unittest.TestCase):
         self.assertTrue((self.path / "history.json").exists())
         self.w.persist_history.setChecked(False)
         self.assertFalse((self.path / "history.json").exists())
+
+    def test_compact_reader_keeps_dialogue_readable(self):
+        self.w.compact_reader.setChecked(True)
+        self.w.reader.text.setPlainText("A dialogue line")
+        self.w.reader.show()
+        self.qt.processEvents()
+        self.assertGreaterEqual(self.w.reader.text.height(), 80)
+        self.assertFalse(self.w.reader.reader_controls.isVisible())
+        self.w.compact_reader.setChecked(False)
+        self.qt.processEvents()
+        self.assertTrue(self.w.reader.reader_controls.isVisible())

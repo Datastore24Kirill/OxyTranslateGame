@@ -103,9 +103,7 @@ class Features:
         self.pass_clicks.toggled.connect(self.reader_clickthrough)
         row.addWidget(self.pass_clicks)
         self.compact_reader = QCheckBox(tr("Компактно"))
-        self.compact_reader.toggled.connect(
-            lambda yes: self.reader.resize(440 if yes else 580, 240 if yes else 330)
-        )
+        self.compact_reader.toggled.connect(self.set_compact_reader)
         row.addWidget(self.compact_reader)
         self.reader.layout().addLayout(row)
         menu = self.tray.contextMenu()
@@ -484,6 +482,15 @@ class Features:
             self.window_bindings.clear()
             self.region_index = -1
             self.refresh_regions()
+
+    def set_compact_reader(self, yes):
+        self.reader.reader_controls.setVisible(not yes)
+        self.reader.opacity_controls.setVisible(not yes)
+        self.reader.status.setVisible(not yes)
+        self.reader.original.setVisible(
+            not yes and self.reader.original_toggle.isChecked()
+        )
+        self.reader.resize(440 if yes else 580, 260 if yes else 390)
 
     def reader_clickthrough(self, yes):
         self.reader.setWindowFlag(Qt.WindowTransparentForInput, yes)

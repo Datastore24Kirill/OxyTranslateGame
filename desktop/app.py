@@ -229,7 +229,9 @@ class Reader(QWidget):
             f"font-size: {font.value()}px; border: none; background: transparent;"
         )
         row.addWidget(font)
-        layout.addLayout(row)
+        self.reader_controls = QWidget()
+        self.reader_controls.setLayout(row)
+        layout.addWidget(self.reader_controls)
         opacity = self.opacity_slider = QSlider(Qt.Horizontal)
         opacity.setRange(45, 100)
         opacity.setValue(owner.preferences.value("reader/opacity", 100, type=int))
@@ -243,7 +245,9 @@ class Reader(QWidget):
         row2.addWidget(label(tr("Непрозрачность"), "Muted"))
         row2.addWidget(opacity)
         row2.addStretch()
-        layout.addLayout(row2)
+        self.opacity_controls = QWidget()
+        self.opacity_controls.setLayout(row2)
+        layout.addWidget(self.opacity_controls)
         QShortcut(QKeySequence("Escape"), self, activated=self.close)
 
     def closeEvent(self, event):
@@ -1445,6 +1449,13 @@ def main():
                 font=ImageFont.load_default(size=34),
             )
             text = LocalEngines().read(np.asarray(image)[:, :, ::-1].copy())
+            if (
+                detect_source(
+                    "This is a conversation about a village and the people who live there."
+                )
+                != "en"
+            ):
+                raise RuntimeError("Bundled language detection failed")
             if "Rachel" not in text:
                 raise RuntimeError("Bundled OCR did not recognize fixture")
             if sys.stdout:
