@@ -2,9 +2,9 @@
 
 ## Current status
 
-The SignPath Foundation application was submitted on 2026-10-05; the form confirmed receipt. A decision is pending. The project has not been accepted by SignPath Foundation, and current Windows releases are not signed by SignPath. No signed release or approval is claimed here.
+The SignPath Foundation application was submitted on 2026-10-05. On 2026-10-06, the maintainer received a rejection: the project does not yet have sufficient public adoption, independent references and sustained community engagement for the Foundation program. Current Windows releases remain unsigned. No certificate, approval or partnership is claimed.
 
-We intend to request free code signing provided by [SignPath.io](https://signpath.io), with a certificate from [SignPath Foundation](https://signpath.org). These credits will be updated to confirmed status only after acceptance and verification of an actual signed release.
+The Foundation invited a future application after broader recognition. We will continue public development, documentation, downloadable releases and support for genuine users. A paid subscription has not been purchased or configured. Signing credits will be added only after acceptance and verification of an actual signed release.
 
 ## Responsibilities
 
@@ -17,4 +17,4 @@ Only this project's executable and installer built from an identified source com
 
 The signing service's credential must be kept in protected CI secrets, never in source control. An unsigned fallback must not be labelled signed.
 
-See the [privacy policy](privacy.md) and [dependency notices](../desktop/THIRD_PARTY.md). Eligibility, artifact layout and roles remain subject to SignPath's review.
+See the [privacy policy](privacy.md) and [dependency notices](../desktop/THIRD_PARTY.md). Any future application requires a new review; no acceptance timeline is promised.

@@ -3,6 +3,7 @@
 The OxyTranslateGame application source is MIT licensed. Dependencies and downloaded models retain their own licenses and are not relicensed by this repository.
 
 - PySide6 / Qt for Python and Shiboken6: LGPLv3 / GPLv3 / commercial licensing, used as dynamically linked LGPL components. See https://doc.qt.io/qtforpython-6/licenses.html and the distributed package metadata/license files. Source and replacement builds are available from https://code.qt.io/cgit/pyside/pyside-setup.git/ and https://download.qt.io/official_releases/QtForPython/. The application does not restrict reverse engineering for debugging modifications to LGPL components; compatible dynamic libraries can be replaced in the distribution.
+- langdetect: Apache-2.0 (Python port). https://github.com/Mimino666/langdetect
 - RapidOCR: Apache-2.0. https://github.com/RapidAI/RapidOCR
 - ONNX Runtime: MIT. https://github.com/microsoft/onnxruntime
 - CTranslate2: MIT. https://github.com/OpenNMT/CTranslate2

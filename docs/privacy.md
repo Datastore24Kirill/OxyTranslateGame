@@ -1,6 +1,6 @@
 # Privacy policy
 
-OxyTranslateGame processes the screen region selected by the user to recognize and translate text. Screenshots and recognized dialogue are not automatically uploaded to the maintainer or a cloud translation service. Screenshots are held in memory; translation history is held in memory for the current session. A user-saved glossary and application preferences are stored locally.
+OxyTranslateGame processes the screen region selected by the user to recognize and translate text. Screenshots and recognized dialogue are not automatically uploaded to the maintainer or a cloud translation service. Screenshots are held in memory. Translation history is session-only by default; users can opt into local history.json persistence and disable it again to remove the file. Game profiles (including glossaries, region coordinates and preferences) are stored locally and may be explicitly exported. CSV export includes dialogue. Diagnostic ZIP exports contain technical metadata only unless the user explicitly selects the current-dialogue and/or selected-region-screenshot options. Nothing is automatically submitted. Window attachment reads window names and bounds to let the user select a game, but does not save these names in diagnostic reports. A user-saved glossary and application preferences are stored locally.
 
 Network connections:
 

@@ -16,7 +16,7 @@ command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--win
     '--add-data', str(ROOT/'desktop/AppIcon.png') + os.pathsep + '.',
     '--add-data', str(ROOT/'desktop/THIRD_PARTY.md') + os.pathsep + '.',
     '--add-data', str(ROOT/'LICENSE') + os.pathsep + '.',
-    '--collect-all', 'rapidocr_onnxruntime', '--collect-all', 'ctranslate2',
+    '--collect-data', 'langdetect', '--collect-all', 'rapidocr_onnxruntime', '--collect-all', 'ctranslate2',
     '--collect-all', 'onnxruntime', '--collect-all', 'sentencepiece', '--collect-data', 'certifi',
     '--copy-metadata', 'PySide6_Essentials', '--copy-metadata', 'shiboken6',
     '--exclude-module', 'PySide6.QtWebEngineCore', '--exclude-module', 'PySide6.QtWebEngineWidgets',
@@ -30,13 +30,13 @@ if IS_MAC:
     bundle = output/'OxyTranslateGame.app'
     info = bundle/'Contents/Info.plist'
     data = plistlib.loads(info.read_bytes())
-    data.update(CFBundleShortVersionString='0.2.7', CFBundleVersion='9', LSMinimumSystemVersion='14.0',
+    data.update(CFBundleShortVersionString='0.3.0', CFBundleVersion='10', LSMinimumSystemVersion='14.0',
                 NSScreenCaptureUsageDescription='Read only the screen area you select for local translation.')
     info.write_bytes(plistlib.dumps(data))
     subprocess.run(['codesign','--force','--deep','--sign',os.environ.get('CODESIGN_IDENTITY','-'),str(bundle)],check=True)
     subprocess.run(['codesign','--verify','--deep','--strict',str(bundle)],check=True)
-    archive = output/f'OxyTranslateGame-0.2.7-macOS-{platform.machine()}.zip'
+    archive = output/f'OxyTranslateGame-0.3.0-macOS-{platform.machine()}.zip'
     subprocess.run(['ditto','-c','-k','--sequesterRsrc','--keepParent',str(bundle),str(archive)],check=True)
 else:
-    shutil.make_archive(str(output/'OxyTranslateGame-0.2.7-Windows-x64-Portable'),'zip',str(output),'OxyTranslateGame')
+    shutil.make_archive(str(output/'OxyTranslateGame-0.3.0-Windows-x64-Portable'),'zip',str(output),'OxyTranslateGame')
 print('BUILD_OK', flush=True)
