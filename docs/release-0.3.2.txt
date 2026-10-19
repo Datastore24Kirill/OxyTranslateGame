@@ -1,0 +1,5 @@
+OxyTranslateGame 0.3.2
+
+Ollama: request a structured translation, reject incomplete or invalid responses instead of displaying reasoning. Bound output tokens to passage size.
+
+Validation: 10 engine tests passed. Local qwen3:4b returned Russian for the reported two-line input in 0.86 seconds with a warm model (not a general latency guarantee). macOS build 12 packaged, signature verified, installed and version checked in UI. Full OCR-to-overlay flow not revalidated. Windows packaging metadata updated; Windows binary not built here.

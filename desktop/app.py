@@ -61,7 +61,7 @@ from languages import detect_source
 from i18n import tr
 from updater import download, mac_bundle, stage_replacement, launch_swap
 
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 
 
 class Signals(QObject):
